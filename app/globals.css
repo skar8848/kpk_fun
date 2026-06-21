@@ -1,26 +1,46 @@
 @import "tailwindcss";
 
+/* Design system KPK / Pacifica */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --bg: #0a121c;
+  --card: #0c1218;
+  --primary: #55c3e9;
+  --green: #02c77b;
+  --red: #eb365a;
+  --yellow: #f5a623;
+  --muted: #586878;
+  --muted-fg: #8898a8;
+  --border: rgba(255, 255, 255, 0.08);
+  --fg: #e8eef4;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-bg: var(--bg);
+  --color-card: var(--card);
+  --color-primary: var(--primary);
+  --color-green: var(--green);
+  --color-red: var(--red);
+  --color-yellow: var(--yellow);
+  --color-muted: var(--muted);
+  --color-muted-fg: var(--muted-fg);
+  --color-border: var(--border);
+  --color-fg: var(--fg);
+  --font-sans: var(--font-inter);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html, body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-inter), system-ui, sans-serif;
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+}
+
+.mono {
+  font-variant-numeric: tabular-nums;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
 }
