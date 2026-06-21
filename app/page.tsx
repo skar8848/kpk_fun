@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ReactFlow, Background, Controls, MiniMap, Handle, Position,
+  useNodesState, useEdgesState,
   type Node, type Edge, type NodeProps,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
@@ -95,14 +96,18 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [sel, setSel] = useState<GraphNode | null>(null);
   const [showStats, setShowStats] = useState(false);
+  const [meta, setMeta] = useState<{ cachedAt?: number; fromCache?: boolean }>({});
+  const [refresh, setRefresh] = useState<(() => void) | null>(null);
 
-  const load = useCallback(async (a: string, c: string) => {
+  const fetchGraph = useCallback(async (url: string, again: () => void) => {
     setLoading(true); setError(null); setSel(null);
     try {
-      const res = await fetch(`/api/graph?address=${a}&chain=${c}`);
+      const res = await fetch(url);
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "erreur");
       setGraph(data.graph);
+      setMeta({ cachedAt: data.cachedAt, fromCache: data.fromCache });
+      setRefresh(() => again);
     } catch (e) {
       setError(String(e instanceof Error ? e.message : e));
     } finally {
@@ -110,23 +115,48 @@ export default function Home() {
     }
   }, []);
 
-  const loadFootprint = useCallback(async () => {
-    setLoading(true); setError(null); setSel(null);
-    try {
-      const res = await fetch(`/api/footprint`);
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "erreur");
-      setGraph(data.graph);
-    } catch (e) {
-      setError(String(e instanceof Error ? e.message : e));
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const load = useCallback((a: string, c: string, fresh = false) => {
+    fetchGraph(`/api/graph?address=${a}&chain=${c}${fresh ? "&fresh=1" : ""}`, () => load(a, c, true));
+  }, [fetchGraph]);
+
+  const loadFootprint = useCallback((fresh = false) => {
+    fetchGraph(`/api/footprint${fresh ? "?fresh=1" : ""}`, () => loadFootprint(true));
+  }, [fetchGraph]);
 
   useEffect(() => { load(PRESETS[0].addr, "ethereum"); }, [load]);
 
-  const { nodes, edges } = useMemo(() => (graph ? layout(graph) : { nodes: [], edges: [] }), [graph]);
+  // état contrôlé : drag persistant + arêtes qui suivent
+  const [rfNodes, setRfNodes, onNodesChange] = useNodesState<Node>([]);
+  const [rfEdges, setRfEdges, onEdgesChange] = useEdgesState<Edge>([]);
+
+  useEffect(() => {
+    if (!graph) return;
+    const { nodes, edges } = layout(graph);
+    setRfNodes(nodes);
+    setRfEdges(edges);
+  }, [graph, setRfNodes, setRfEdges]);
+
+  // surbrillance des liens directs du nœud sélectionné
+  const hl = useMemo(() => {
+    if (!sel || !graph) return null;
+    const eids = new Set<string>(); const nids = new Set<string>([sel.id]);
+    for (const e of graph.edges) {
+      if (e.source === sel.id || e.target === sel.id) { eids.add(e.id); nids.add(e.source); nids.add(e.target); }
+    }
+    return { eids, nids };
+  }, [sel, graph]);
+
+  const displayNodes = useMemo(() => rfNodes.map((n) => ({
+    ...n, style: { ...n.style, opacity: hl && !hl.nids.has(n.id) ? 0.18 : 1, transition: "opacity .15s" },
+  })), [rfNodes, hl]);
+
+  const displayEdges = useMemo(() => rfEdges.map((e) => {
+    const on = hl?.eids.has(e.id);
+    return {
+      ...e, animated: !!on,
+      style: { stroke: on ? "#55c3e9" : hl ? "rgba(255,255,255,0.04)" : "rgba(255,255,255,0.12)", strokeWidth: on ? 2 : 1 },
+    };
+  }), [rfEdges, hl]);
 
   return (
     <div className="h-screen flex flex-col">
@@ -148,7 +178,7 @@ export default function Home() {
           className="bg-primary text-bg font-medium rounded-lg px-4 py-1.5 text-sm disabled:opacity-50">
           {loading ? "…" : "Scan"}
         </button>
-        <button onClick={loadFootprint} disabled={loading}
+        <button onClick={() => loadFootprint()} disabled={loading}
           className="border border-primary text-primary font-medium rounded-lg px-4 py-1.5 text-sm disabled:opacity-50">
           🌐 KPK Footprint
         </button>
@@ -156,6 +186,11 @@ export default function Home() {
           className="border border-border text-fg rounded-lg px-3 py-1.5 text-sm disabled:opacity-40">
           📊 Stats
         </button>
+        <button onClick={() => refresh?.()} disabled={loading || !refresh} title="recalculer (bypass cache)"
+          className="border border-border text-muted-fg hover:text-fg rounded-lg px-3 py-1.5 text-sm disabled:opacity-40">
+          ↻
+        </button>
+        {meta.fromCache && <span className="text-[10px] text-muted-fg">⚡ cache</span>}
         {PRESETS.map((p) => (
           <button key={p.addr} onClick={() => { setAddr(p.addr); load(p.addr, "ethereum"); }}
             className="text-xs text-muted-fg hover:text-primary border border-border rounded-full px-3 py-1">
@@ -168,9 +203,11 @@ export default function Home() {
 
       <div className="flex-1 relative">
         <ReactFlow
-          nodes={nodes} edges={edges} nodeTypes={nodeTypes}
+          nodes={displayNodes} edges={displayEdges} nodeTypes={nodeTypes}
+          onNodesChange={onNodesChange} onEdgesChange={onEdgesChange}
           fitView minZoom={0.1} maxZoom={2}
           onNodeClick={(_, n) => setSel(n.data as unknown as GraphNode)}
+          onPaneClick={() => setSel(null)}
           proOptions={{ hideAttribution: true }}
           colorMode="dark"
         >

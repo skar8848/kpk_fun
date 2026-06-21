@@ -1,17 +1,19 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getVaultV1, getVaultV2 } from "@/lib/morpho";
 import { decompose } from "@/lib/decompose";
-import { buildFootprint, type V2Brief } from "@/lib/footprint";
+import { buildFootprint } from "@/lib/footprint";
 import { KPK_SAFES, KPK_VAULTS } from "@/lib/kpkEntities";
 import { getSafePositions, mapLimited, type ZPosition } from "@/lib/zerion";
+import { cached } from "@/lib/cache";
 import type { ScanReport } from "@/lib/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+const TTL = 5 * 60 * 1000;
+
+async function computeFootprint() {
   const vaultReports: ScanReport[] = [];
-  const v2vaults: V2Brief[] = [];
   const skipped: { address: string; reason: string }[] = [];
 
   await Promise.all(
@@ -27,7 +29,6 @@ export async function GET() {
     }),
   );
 
-  // Positions des Safes via Zerion (si clé configurée)
   const key = process.env.ZERION_API_KEY;
   let safePositions: Record<string, ZPosition[]> | undefined;
   let zerion = false;
@@ -40,9 +41,12 @@ export async function GET() {
     for (const r of results) safePositions[r.avatar] = r.pos;
   }
 
-  const graph = buildFootprint({ vaultReports, v2vaults, safes: KPK_SAFES, safePositions });
-  return NextResponse.json({
-    graph, skipped, zerion,
-    counts: { safes: KPK_SAFES.length, v1: vaultReports.length, v2: v2vaults.length },
-  });
+  const graph = buildFootprint({ vaultReports, v2vaults: [], safes: KPK_SAFES, safePositions });
+  return { graph, skipped, zerion, counts: { safes: KPK_SAFES.length, vaults: vaultReports.length } };
+}
+
+export async function GET(req: NextRequest) {
+  const force = new URL(req.url).searchParams.get("fresh") === "1";
+  const { data, cachedAt, fresh } = await cached("footprint", TTL, computeFootprint, force);
+  return NextResponse.json({ ...data, cachedAt, fromCache: fresh });
 }
