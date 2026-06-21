@@ -88,3 +88,12 @@ export async function getVaultV1(address: string, chain: string): Promise<VaultN
     allocations,
   };
 }
+
+export async function getVaultV2Brief(address: string, chain: string): Promise<{ name: string | null; tvlUsd: number }> {
+  const cid = CHAIN_IDS[chain];
+  if (!cid) throw new Error(`chaîne inconnue: ${chain}`);
+  const q = `query($a:String!,$c:Int!){ vaultV2ByAddress(address:$a, chainId:$c){ name totalAssetsUsd } }`;
+  const d = await gql<{ vaultV2ByAddress: { name: string | null; totalAssetsUsd: string | null } | null }>(q, { a: address, c: cid });
+  const v = d.vaultV2ByAddress;
+  return { name: v?.name ?? null, tvlUsd: Number(v?.totalAssetsUsd ?? 0) };
+}

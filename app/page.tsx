@@ -26,31 +26,36 @@ const sevColor: Record<string, string> = { RED: "#eb365a", YELLOW: "#f5a623", OK
 function KNode({ data, selected }: NodeProps) {
   const d = data as unknown as GraphNode;
   const accent =
-    d.kind === "root" ? "#55c3e9"
-    : d.kind === "entity" ? "#8898a8"
+    d.kind === "root" || d.kind === "group" ? "#55c3e9"
+    : d.kind === "entity" ? (d.pending ? "#586878" : "#8898a8")
     : sevColor[d.severity ?? "OK"];
+  const filled = d.kind === "root" || d.kind === "group";
   return (
     <div
       className="rounded-lg px-3 py-1.5 text-xs"
       style={{
-        background: d.kind === "root" ? "#55c3e9" : "#0c1218",
+        background: filled ? (d.kind === "root" ? "#55c3e9" : "#11202c") : "#0c1218",
         color: d.kind === "root" ? "#0a121c" : "#e8eef4",
         border: `1px solid ${accent}`,
+        borderStyle: d.pending ? "dashed" : "solid",
         boxShadow: selected ? `0 0 0 2px ${accent}` : "none",
-        minWidth: 90,
+        minWidth: d.kind === "group" ? 130 : 90,
+        opacity: d.pending ? 0.85 : 1,
       }}
     >
       <Handle type="target" position={Position.Left} style={{ opacity: 0 }} />
       <div className="font-medium flex items-center gap-1.5">
-        {d.kind !== "root" && d.kind !== "entity" && (
+        {(d.kind === "market" || d.kind === "asset") && (
           <span className="inline-block w-1.5 h-1.5 rounded-full" style={{ background: accent }} />
         )}
-        <span className="mono">{d.label}</span>
+        <span className={d.kind === "group" ? "uppercase tracking-wide" : "mono"}>{d.label}</span>
+        {d.version && <span className="text-[8px] border border-current rounded px-0.5 opacity-60">{d.version}</span>}
       </div>
       {d.usd > 0 && <div className="mono opacity-60 text-[10px]">{usd(d.usd)}</div>}
       {d.protocol && d.protocol !== "-" && d.protocol !== "?" && (
         <div className="text-[9px] opacity-50">{d.protocol}</div>
       )}
+      {d.pending && <div className="text-[9px] opacity-60">positions pending…</div>}
       <Handle type="source" position={Position.Right} style={{ opacity: 0 }} />
     </div>
   );
@@ -102,6 +107,20 @@ export default function Home() {
     }
   }, []);
 
+  const loadFootprint = useCallback(async () => {
+    setLoading(true); setError(null); setSel(null);
+    try {
+      const res = await fetch(`/api/footprint`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "erreur");
+      setGraph(data.graph);
+    } catch (e) {
+      setError(String(e instanceof Error ? e.message : e));
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   useEffect(() => { load(PRESETS[0].addr, "ethereum"); }, [load]);
 
   const { nodes, edges } = useMemo(() => (graph ? layout(graph) : { nodes: [], edges: [] }), [graph]);
@@ -126,6 +145,10 @@ export default function Home() {
           className="bg-primary text-bg font-medium rounded-lg px-4 py-1.5 text-sm disabled:opacity-50">
           {loading ? "…" : "Scan"}
         </button>
+        <button onClick={loadFootprint} disabled={loading}
+          className="border border-primary text-primary font-medium rounded-lg px-4 py-1.5 text-sm disabled:opacity-50">
+          🌐 KPK Footprint
+        </button>
         {PRESETS.map((p) => (
           <button key={p.addr} onClick={() => { setAddr(p.addr); load(p.addr, "ethereum"); }}
             className="text-xs text-muted-fg hover:text-primary border border-border rounded-full px-3 py-1">
@@ -148,7 +171,7 @@ export default function Home() {
           <Controls showInteractive={false} />
           <MiniMap pannable zoomable nodeColor={(n) => {
             const d = n.data as unknown as GraphNode;
-            return d.kind === "root" ? "#55c3e9" : d.kind === "entity" ? "#586878" : sevColor[d.severity ?? "OK"];
+            return d.kind === "root" || d.kind === "group" ? "#55c3e9" : d.kind === "entity" ? "#586878" : sevColor[d.severity ?? "OK"];
           }} maskColor="rgba(10,18,28,0.6)" style={{ background: "#0c1218" }} />
         </ReactFlow>
 
@@ -172,6 +195,10 @@ export default function Home() {
             <div className="text-xs text-muted-fg mt-0.5">{sel.kind}{sel.chain ? ` · ${sel.chain}` : ""}</div>
             <div className="mono text-primary text-lg mt-2">{usd(sel.usd)}</div>
             <dl className="text-xs mt-3 space-y-1.5">
+              {sel.dao && <Row k="DAO" v={sel.dao} />}
+              {sel.version && <Row k="version" v={sel.version} />}
+              {sel.chains && sel.chains.length > 0 && <Row k="chaînes" v={sel.chains.join(", ")} />}
+              {sel.pending && <Row k="positions" v="à charger (Zerion)" accent="#586878" />}
               {sel.protocol && sel.protocol !== "-" && sel.protocol !== "?" && <Row k="protocole" v={sel.protocol} />}
               {sel.mechanism && <Row k="mécanisme" v={sel.mechanism} />}
               {sel.risk && <Row k="risque" v={sel.risk} accent="#f5a623" />}
