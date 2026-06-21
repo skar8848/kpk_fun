@@ -49,7 +49,7 @@ export type VaultNorm = {
   address: string;
   chain: string;
   name: string | null;
-  version: "v1";
+  version: "v1" | "v2";
   asset: Asset | null;
   tvlUsd: number;
   allocations: { supplyUsd: number; market: Market }[];

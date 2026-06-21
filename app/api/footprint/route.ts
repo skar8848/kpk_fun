@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getVaultV1, getVaultV2Brief } from "@/lib/morpho";
+import { getVaultV1, getVaultV2 } from "@/lib/morpho";
 import { decompose } from "@/lib/decompose";
 import { buildFootprint, type V2Brief } from "@/lib/footprint";
 import { KPK_SAFES, KPK_VAULTS } from "@/lib/kpkEntities";
@@ -17,12 +17,10 @@ export async function GET() {
   await Promise.all(
     KPK_VAULTS.map(async (v) => {
       try {
-        if (v.version === "v1") {
-          vaultReports.push(decompose(await getVaultV1(v.address, v.chain)));
-        } else {
-          const b = await getVaultV2Brief(v.address, v.chain);
-          v2vaults.push({ name: b.name ?? v.name, address: v.address, chain: v.chain, tvlUsd: b.tvlUsd });
-        }
+        const norm = v.version === "v1"
+          ? await getVaultV1(v.address, v.chain)
+          : await getVaultV2(v.address, v.chain);
+        vaultReports.push(decompose(norm));
       } catch (e) {
         skipped.push({ address: v.address, reason: String(e instanceof Error ? e.message : e) });
       }

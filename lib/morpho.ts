@@ -89,6 +89,89 @@ export async function getVaultV1(address: string, chain: string): Promise<VaultN
   };
 }
 
+export async function getMarket(marketId: string, chain: string): Promise<Market> {
+  const cid = CHAIN_IDS[chain];
+  const q = `query($id:String!,$c:Int!){ marketById(marketId:$id, chainId:$c){ ${MARKET_FRAG} } }`;
+  const d = await gql<{ marketById: Market | null }>(q, { id: marketId, c: cid });
+  if (!d.marketById) throw new Error(`marché ${marketId} introuvable`);
+  return d.marketById;
+}
+
+type V2Resp = {
+  vaultV2ByAddress: {
+    name: string | null;
+    asset: { symbol: string; address: string; decimals: number } | null;
+    totalAssetsUsd: string | null;
+    adapters: {
+      items: {
+        __typename: string;
+        positions?: { items: { state: { supplyAssetsUsd: string | null } | null; market: { marketId: string } }[] };
+        metaMorpho?: { address: string } | null;
+        innerVault?: { address: string } | null;
+      }[];
+    } | null;
+  } | null;
+};
+
+// Vault v2 : résout les adapters -> marchés sous-jacents (sans RPC).
+// Requête légère (marketId seul) puis fetch des marchés (sinon complexité GraphQL explose).
+export async function getVaultV2(address: string, chain: string, depth = 0): Promise<VaultNorm> {
+  const cid = CHAIN_IDS[chain];
+  if (!cid) throw new Error(`chaîne inconnue: ${chain}`);
+  const q = `query($a:String!,$c:Int!){
+    vaultV2ByAddress(address:$a, chainId:$c){
+      name asset{symbol address decimals} totalAssetsUsd
+      adapters{ items {
+        __typename
+        ... on MorphoMarketV1Adapter { positions { items { state { supplyAssetsUsd } market { marketId } } } }
+        ... on MetaMorphoAdapter { metaMorpho { address } }
+        ... on MorphoVaultV2Adapter { innerVault { address } }
+      } }
+    }
+  }`;
+  const v = (await gql<V2Resp>(q, { a: address, c: cid })).vaultV2ByAddress;
+  if (!v) throw new Error(`vault v2 ${address} introuvable sur ${chain}`);
+
+  const allocations: { supplyUsd: number; market: Market }[] = [];
+  const needMarkets = new Map<string, number>(); // marketId -> supplyUsd
+  for (const ad of v.adapters?.items ?? []) {
+    if (ad.__typename === "MorphoMarketV1Adapter") {
+      for (const p of ad.positions?.items ?? []) {
+        const usd = Number(p.state?.supplyAssetsUsd ?? 0);
+        if (usd > 100 && p.market?.marketId) needMarkets.set(p.market.marketId, (needMarkets.get(p.market.marketId) ?? 0) + usd); // ignore la poussière
+      }
+    } else if (ad.__typename === "MetaMorphoAdapter" && ad.metaMorpho?.address) {
+      try { allocations.push(...(await getVaultV1(ad.metaMorpho.address, chain)).allocations); } catch {}
+    } else if (ad.__typename === "MorphoVaultV2Adapter" && ad.innerVault?.address && depth < 3) {
+      try { allocations.push(...(await getVaultV2(ad.innerVault.address, chain, depth + 1)).allocations); } catch {}
+    }
+  }
+  // fetch des marchés directs (parallèle)
+  const fetched = await Promise.all(
+    [...needMarkets.entries()].map(async ([id, usd]) => {
+      try { return { supplyUsd: usd, market: await getMarket(id, chain) }; } catch { return null; }
+    }),
+  );
+  for (const f of fetched) if (f) allocations.push(f);
+  // fusionne les doublons de marché (un même marché via plusieurs adapters)
+  const byMkt = new Map<string, { supplyUsd: number; market: Market }>();
+  for (const a of allocations) {
+    const ex = byMkt.get(a.market.marketId);
+    if (ex) ex.supplyUsd += a.supplyUsd; else byMkt.set(a.market.marketId, { ...a });
+  }
+  const merged = [...byMkt.values()].sort((x, y) => y.supplyUsd - x.supplyUsd);
+  return {
+    address, chain, name: v.name, version: "v2", asset: v.asset,
+    tvlUsd: Number(v.totalAssetsUsd ?? 0), allocations: merged,
+  };
+}
+
+// Auto-détection : essaie v1 puis v2.
+export async function getVault(address: string, chain: string): Promise<VaultNorm> {
+  try { return await getVaultV1(address, chain); }
+  catch { return await getVaultV2(address, chain); }
+}
+
 export async function getVaultV2Brief(address: string, chain: string): Promise<{ name: string | null; tvlUsd: number }> {
   const cid = CHAIN_IDS[chain];
   if (!cid) throw new Error(`chaîne inconnue: ${chain}`);
