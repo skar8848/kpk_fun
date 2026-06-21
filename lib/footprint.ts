@@ -3,7 +3,7 @@
 // → marchés Morpho → primitives de risque (récursion).
 // Les Safes sont des nœuds "pending" tant que Zerion n'est pas branché.
 
-import { walkTree, relevel, type Graph, type GraphNode, type GraphEdge } from "./graph";
+import { walkTree, relevel, computePct, type Graph, type GraphNode, type GraphEdge } from "./graph";
 import { resolveTree } from "./decompose";
 import type { ScanReport } from "./types";
 import type { KpkSafe } from "./kpkEntities";
@@ -46,7 +46,7 @@ export function buildFootprint(args: {
     const total = positions ? positions.reduce((t, p) => t + p.value, 0) : 0;
     addNode({
       id, kind: "entity", label: s.label, usd: total, level: 2,
-      dao: s.dao, chains: s.chains, pending: !positions,
+      dao: s.dao, chains: s.chains, pending: !positions, address: s.avatar,
     });
     addEdge(g, id);
 
@@ -55,7 +55,7 @@ export function buildFootprint(args: {
       const pid = `pos::${id}::${p.protocol}::${p.symbol}::${p.chain}`;
       addNode({
         id: pid, kind: "market", label: `${p.symbol} · ${p.protocol}`, usd: p.value,
-        level: 3, protocol: p.protocol, mechanism: p.type, chain: p.chain, severity: "OK",
+        level: 3, protocol: p.protocol, mechanism: p.type, type: p.type, chain: p.chain, severity: "OK",
       });
       addEdge(id, pid);
       // récursion sur le token sous-jacent → convergence vers les primitives
@@ -68,12 +68,17 @@ export function buildFootprint(args: {
 
   for (const r of args.vaultReports) {
     const id = `entity::${r.vault.chain}::${r.vault.address.toLowerCase()}`;
-    addNode({ id, kind: "entity", label: r.vault.name ?? "vault", usd: r.tvlUsd, level: 2, chain: r.vault.chain, version: "v1" });
+    addNode({ id, kind: "entity", label: r.vault.name ?? "vault", usd: r.tvlUsd, level: 2, chain: r.vault.chain, version: "v1", address: r.vault.address });
     addEdge(VG, id);
     for (const p of r.positions) {
       if (p.usd <= 0) continue;
       const mId = `market::${id}::${p.label}`;
-      addNode({ id: mId, kind: "market", label: p.label, usd: p.usd, level: 3, severity: p.oracle.severity, flags: p.oracle.flags });
+      addNode({
+        id: mId, kind: "market", label: p.label, usd: p.usd, level: 3, severity: p.oracle.severity,
+        flags: p.oracle.flags, chain: r.vault.chain, address: p.metrics.marketId,
+        lltvPct: p.metrics.lltvPct, utilPct: p.metrics.utilPct, supplyApyPct: p.metrics.supplyApyPct,
+        borrowApyPct: p.metrics.borrowApyPct, liquidityUsd: p.metrics.liquidityUsd,
+      });
       addEdge(id, mId);
       walkTree(p.tree, mId, 4, addNode, addEdge);
     }
@@ -81,7 +86,7 @@ export function buildFootprint(args: {
 
   for (const v of args.v2vaults) {
     const id = `entity::${v.chain}::${v.address.toLowerCase()}`;
-    addNode({ id, kind: "entity", label: v.name, usd: v.tvlUsd, level: 2, chain: v.chain, version: "v2", pending: true });
+    addNode({ id, kind: "entity", label: v.name, usd: v.tvlUsd, level: 2, chain: v.chain, version: "v2", pending: true, address: v.address });
     addEdge(VG, id);
   }
 
@@ -91,6 +96,8 @@ export function buildFootprint(args: {
   }
   for (const n of nodes.values()) if (n.kind === "group") nodes.get(ROOT)!.usd += n.usd;
 
-  relevel([...nodes.values()], [...edges.values()]);
-  return { nodes: [...nodes.values()], edges: [...edges.values()] };
+  const nlist = [...nodes.values()];
+  relevel(nlist, [...edges.values()]);
+  computePct(nlist);
+  return { nodes: nlist, edges: [...edges.values()] };
 }

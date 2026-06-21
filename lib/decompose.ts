@@ -85,10 +85,21 @@ export function decompose(vault: VaultNorm): ScanReport {
       loops.push({ market: label, lltv_pct: round(lltv * 100, 1), max_leverage_x: maxLev });
     }
 
+    const st = m.state;
     positions.push({
       label, usd, pct: round(100 * usd / tvl, 2),
       lltv_pct: round(Number(m.lltv ?? 0) / 1e16, 1),
       tree, oracle: orc, unmapped_collateral: tree.unmapped,
+      metrics: {
+        marketId: m.marketId,
+        collateralAddr: m.collateralAsset?.address,
+        loanAddr: m.loanAsset?.address,
+        lltvPct: round(Number(m.lltv ?? 0) / 1e16, 1),
+        utilPct: st?.utilization != null ? round(st.utilization * 100, 1) : undefined,
+        supplyApyPct: st?.supplyApy != null ? round(st.supplyApy * 100, 2) : undefined,
+        borrowApyPct: st?.borrowApy != null ? round(st.borrowApy * 100, 2) : undefined,
+        liquidityUsd: st?.liquidityAssetsUsd != null ? Number(st.liquidityAssetsUsd) : undefined,
+      },
     });
   }
 
