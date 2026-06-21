@@ -7,6 +7,8 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import type { Graph, GraphNode } from "@/lib/graph";
+import { explorerAddr, shortAddr } from "@/lib/explorer";
+import Stats from "@/components/Stats";
 
 const PRESETS = [
   { name: "Smokehouse USDC", addr: "0xBEeFFF209270748ddd194831b3fa287a5386f5bC" },
@@ -92,6 +94,7 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sel, setSel] = useState<GraphNode | null>(null);
+  const [showStats, setShowStats] = useState(false);
 
   const load = useCallback(async (a: string, c: string) => {
     setLoading(true); setError(null); setSel(null);
@@ -149,6 +152,10 @@ export default function Home() {
           className="border border-primary text-primary font-medium rounded-lg px-4 py-1.5 text-sm disabled:opacity-50">
           🌐 KPK Footprint
         </button>
+        <button onClick={() => setShowStats((s) => !s)} disabled={!graph}
+          className="border border-border text-fg rounded-lg px-3 py-1.5 text-sm disabled:opacity-40">
+          📊 Stats
+        </button>
         {PRESETS.map((p) => (
           <button key={p.addr} onClick={() => { setAddr(p.addr); load(p.addr, "ethereum"); }}
             className="text-xs text-muted-fg hover:text-primary border border-border rounded-full px-3 py-1">
@@ -192,13 +199,31 @@ export default function Home() {
               <span className="font-medium mono">{sel.label}</span>
               <button onClick={() => setSel(null)} className="text-muted-fg hover:text-fg">✕</button>
             </div>
-            <div className="text-xs text-muted-fg mt-0.5">{sel.kind}{sel.chain ? ` · ${sel.chain}` : ""}</div>
-            <div className="mono text-primary text-lg mt-2">{usd(sel.usd)}</div>
+            <div className="text-xs text-muted-fg mt-0.5">{sel.kind}{sel.chain ? ` · ${sel.chain}` : ""}{sel.version ? ` · ${sel.version}` : ""}</div>
+            <div className="flex items-baseline gap-2 mt-2">
+              <span className="mono text-primary text-lg">{usd(sel.usd)}</span>
+              {sel.pct != null && sel.pct > 0 && <span className="mono text-xs text-muted-fg">{sel.pct}% du TVL</span>}
+            </div>
             <dl className="text-xs mt-3 space-y-1.5">
+              {sel.address && (
+                <div>
+                  <dt className="text-muted uppercase tracking-wider text-[10px]">contrat</dt>
+                  <dd>
+                    <a href={explorerAddr(sel.chain, sel.address)} target="_blank" rel="noreferrer"
+                      className="mono text-primary hover:underline">{shortAddr(sel.address)} ↗</a>
+                  </dd>
+                </div>
+              )}
               {sel.dao && <Row k="DAO" v={sel.dao} />}
-              {sel.version && <Row k="version" v={sel.version} />}
               {sel.chains && sel.chains.length > 0 && <Row k="chaînes" v={sel.chains.join(", ")} />}
-              {sel.pending && <Row k="positions" v="à charger (Zerion)" accent="#586878" />}
+              {sel.type && <Row k="type" v={sel.type} />}
+              {sel.pending && <Row k="positions" v="à charger (Zerion / v2)" accent="#586878" />}
+              {/* métriques marché Morpho */}
+              {sel.lltvPct != null && <Row k="LLTV" v={`${sel.lltvPct}%`} />}
+              {sel.utilPct != null && <Row k="utilisation" v={`${sel.utilPct}%`} accent={sel.utilPct > 95 ? "#eb365a" : undefined} />}
+              {sel.supplyApyPct != null && <Row k="supply APY" v={`${sel.supplyApyPct}%`} accent="#02c77b" />}
+              {sel.borrowApyPct != null && <Row k="borrow APY" v={`${sel.borrowApyPct}%`} accent="#f5a623" />}
+              {sel.liquidityUsd != null && <Row k="liquidité" v={usd(sel.liquidityUsd)} accent={sel.liquidityUsd < 1000 ? "#eb365a" : undefined} />}
               {sel.protocol && sel.protocol !== "-" && sel.protocol !== "?" && <Row k="protocole" v={sel.protocol} />}
               {sel.mechanism && <Row k="mécanisme" v={sel.mechanism} />}
               {sel.risk && <Row k="risque" v={sel.risk} accent="#f5a623" />}
@@ -207,6 +232,8 @@ export default function Home() {
             </dl>
           </div>
         )}
+
+        {showStats && graph && <Stats graph={graph} onClose={() => setShowStats(false)} />}
       </div>
     </div>
   );

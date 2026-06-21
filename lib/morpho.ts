@@ -54,7 +54,7 @@ marketId lltv
 collateralAsset { symbol address decimals }
 loanAsset { symbol address decimals }
 warnings { type level }
-state { supplyAssetsUsd borrowAssetsUsd collateralAssetsUsd utilization }
+state { supplyAssetsUsd borrowAssetsUsd collateralAssetsUsd liquidityAssetsUsd utilization supplyApy borrowApy }
 ${ORACLE_FRAG}`;
 
 type VaultResp = {

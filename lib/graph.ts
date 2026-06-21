@@ -21,7 +21,23 @@ export type GraphNode = {
   dao?: string;
   version?: string;
   pending?: boolean; // positions à charger (ex: Safe en attente de Zerion)
+  address?: string; // contrat (vault/safe/marketId/token)
+  pct?: number; // % du TVL total (root)
+  type?: string; // type de position Zerion (deposit/staked/loan…)
+  // métriques marché Morpho
+  lltvPct?: number;
+  utilPct?: number;
+  supplyApyPct?: number;
+  borrowApyPct?: number;
+  liquidityUsd?: number;
 };
+
+// % du TVL total (root) sur chaque nœud.
+export function computePct(nodes: GraphNode[]) {
+  const root = nodes.find((n) => n.kind === "root");
+  const total = root?.usd || 1;
+  for (const n of nodes) n.pct = Math.round((1000 * n.usd) / total) / 10;
+}
 
 export type GraphEdge = { id: string; source: string; target: string };
 export type Graph = { nodes: GraphNode[]; edges: GraphEdge[] };
@@ -49,7 +65,8 @@ export function buildGraph(reports: ScanReport[], rootLabel = "KPK"): Graph {
     const entId = `entity::${r.vault.chain}::${r.vault.address.toLowerCase()}`;
     addNode({
       id: entId, kind: "entity", label: r.vault.name ?? "vault",
-      usd: r.tvlUsd, level: 1, chain: r.vault.chain,
+      usd: r.tvlUsd, level: 1, chain: r.vault.chain, address: r.vault.address,
+      version: r.vault.version,
     });
     addEdge(ROOT, entId);
     nodes.get(ROOT)!.usd += r.tvlUsd;
@@ -59,15 +76,20 @@ export function buildGraph(reports: ScanReport[], rootLabel = "KPK"): Graph {
       const mId = `market::${entId}::${p.label}`;
       addNode({
         id: mId, kind: "market", label: p.label, usd: p.usd, level: 2,
-        severity: p.oracle.severity, flags: p.oracle.flags,
+        severity: p.oracle.severity, flags: p.oracle.flags, chain: r.vault.chain,
+        address: p.metrics.marketId, lltvPct: p.metrics.lltvPct, utilPct: p.metrics.utilPct,
+        supplyApyPct: p.metrics.supplyApyPct, borrowApyPct: p.metrics.borrowApyPct,
+        liquidityUsd: p.metrics.liquidityUsd,
       });
       addEdge(entId, mId);
       walkTree(p.tree, mId, 3, addNode, addEdge);
     }
   }
 
-  relevel([...nodes.values()], [...edges.values()]);
-  return { nodes: [...nodes.values()], edges: [...edges.values()] };
+  const nlist = [...nodes.values()];
+  relevel(nlist, [...edges.values()]);
+  computePct(nlist);
+  return { nodes: nlist, edges: [...edges.values()] };
 }
 
 // Les nœuds "asset" sont dédoublonnés par symbole → convergence visuelle.

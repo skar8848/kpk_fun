@@ -26,8 +26,23 @@ export type Market = {
     supplyAssetsUsd: string | null;
     borrowAssetsUsd: string | null;
     collateralAssetsUsd: string | null;
+    liquidityAssetsUsd: string | null;
     utilization: number | null;
+    supplyApy: number | null;
+    borrowApy: number | null;
   } | null;
+};
+
+// Métriques de marché Morpho remontées sur un nœud.
+export type MarketMetrics = {
+  marketId?: string;
+  collateralAddr?: string;
+  loanAddr?: string;
+  lltvPct?: number;
+  utilPct?: number;
+  supplyApyPct?: number;
+  borrowApyPct?: number;
+  liquidityUsd?: number;
 };
 
 export type VaultNorm = {
@@ -69,6 +84,7 @@ export type Position = {
   tree: TreeNode;
   oracle: OracleAnalysis;
   unmapped_collateral: boolean;
+  metrics: MarketMetrics;
 };
 
 export type ExposureRow = { name: string; usd: number; pct: number };
