@@ -4,8 +4,10 @@
 // Les Safes sont des nœuds "pending" tant que Zerion n'est pas branché.
 
 import { walkTree, relevel, type Graph, type GraphNode, type GraphEdge } from "./graph";
+import { resolveTree } from "./decompose";
 import type { ScanReport } from "./types";
 import type { KpkSafe } from "./kpkEntities";
+import type { ZPosition } from "./zerion";
 
 export type V2Brief = { name: string; address: string; chain: string; tvlUsd: number };
 
@@ -13,6 +15,7 @@ export function buildFootprint(args: {
   vaultReports: ScanReport[]; // vaults v1 décomposés
   v2vaults: V2Brief[];
   safes: KpkSafe[];
+  safePositions?: Record<string, ZPosition[]>; // clé = avatar lowercase
 }): Graph {
   const nodes = new Map<string, GraphNode>();
   const edges = new Map<string, GraphEdge>();
@@ -35,15 +38,29 @@ export function buildFootprint(args: {
     return id;
   };
 
-  // 1. Safes de trésorerie (groupés par DAO) — pending Zerion
+  // 1. Safes de trésorerie (groupés par DAO). Positions via Zerion si dispo.
   for (const s of args.safes) {
     const g = group(s.dao);
     const id = `entity::safe::${s.avatar.toLowerCase()}`;
+    const positions = args.safePositions?.[s.avatar.toLowerCase()] ?? null;
+    const total = positions ? positions.reduce((t, p) => t + p.value, 0) : 0;
     addNode({
-      id, kind: "entity", label: `${s.label}`, usd: 0, level: 2,
-      dao: s.dao, chains: s.chains, pending: true,
+      id, kind: "entity", label: s.label, usd: total, level: 2,
+      dao: s.dao, chains: s.chains, pending: !positions,
     });
     addEdge(g, id);
+
+    for (const p of positions ?? []) {
+      // nœud position = protocole + token (granularité par protocole)
+      const pid = `pos::${id}::${p.protocol}::${p.symbol}::${p.chain}`;
+      addNode({
+        id: pid, kind: "market", label: `${p.symbol} · ${p.protocol}`, usd: p.value,
+        level: 3, protocol: p.protocol, mechanism: p.type, chain: p.chain, severity: "OK",
+      });
+      addEdge(id, pid);
+      // récursion sur le token sous-jacent → convergence vers les primitives
+      walkTree(resolveTree(p.symbol, p.value), pid, 4, addNode, addEdge);
+    }
   }
 
   // 2. Vaults curatés Morpho

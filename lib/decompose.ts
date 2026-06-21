@@ -5,7 +5,7 @@ import { lookup, unknownToken } from "./knowledge";
 import { analyzeOracle, contagionBuckets } from "./oracleRisk";
 import type { VaultNorm, TreeNode, Position, ExposureRow, Loop, ScanReport } from "./types";
 
-function resolveTree(symbol: string, usd: number, depth = 0, seen: Set<string> = new Set()): TreeNode {
+export function resolveTree(symbol: string, usd: number, depth = 0, seen: Set<string> = new Set()): TreeNode {
   const info = lookup(symbol) ?? unknownToken();
   const node: TreeNode = {
     symbol, usd, depth,
