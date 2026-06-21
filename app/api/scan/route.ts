@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getVaultV1 } from "@/lib/morpho";
+import { getVault } from "@/lib/morpho";
 import { decompose } from "@/lib/decompose";
 
 export const runtime = "nodejs";
@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "adresse de vault invalide" }, { status: 400 });
   }
   try {
-    const vault = await getVaultV1(address, chain);
+    const vault = await getVault(address, chain);
     const report = decompose(vault);
     return NextResponse.json(report);
   } catch (e) {

@@ -46,6 +46,8 @@ export const DEPS: Record<string, DepInfo> = {
   ezeth: { underlying: ["eth"], protocol: "Renzo", mechanism: "lrt", yield_source: "eth_staking + restaking", risk: "eigenlayer_avs" },
   reth: { underlying: ["eth"], protocol: "RocketPool", mechanism: "lst", yield_source: "eth_staking" },
   cbeth: { underlying: ["eth"], protocol: "Coinbase", mechanism: "lst", yield_source: "eth_staking" },
+  oeth: { underlying: ["eth"], protocol: "Origin", mechanism: "lst", yield_source: "eth_staking" },
+  rseth: { underlying: ["eth"], protocol: "Kelp", mechanism: "lrt", yield_source: "eth_staking + restaking", risk: "eigenlayer_avs" },
 
   // Resolv (notre case study)
   usr: { underlying: ["usdc", "eth"], protocol: "Resolv", mechanism: "delta_neutral_perp", yield_source: "perp_funding", kind: "synthetic_dollar", risk: "issuance_key(SERVICE_ROLE) + RLP_insurance_depth" },

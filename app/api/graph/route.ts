@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getVaultV1 } from "@/lib/morpho";
+import { getVault } from "@/lib/morpho";
 import { decompose } from "@/lib/decompose";
 import { buildGraph } from "@/lib/graph";
 import type { ScanReport } from "@/lib/types";
@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
   await Promise.all(
     valid.map(async (a) => {
       try {
-        reports.push(decompose(await getVaultV1(a, chain)));
+        reports.push(decompose(await getVault(a, chain)));
       } catch (e) {
         skipped.push({ address: a, reason: String(e instanceof Error ? e.message : e) });
       }
