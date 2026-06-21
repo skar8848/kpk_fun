@@ -76,6 +76,37 @@ function pendlePt(symbol: string): DepInfo | null {
   };
 }
 
+// Adresses de contrat (Ethereum mainnet) des tokens connus -> liens explorer.
+export const TOKEN_ADDR: Record<string, string> = {
+  weth: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+  eth: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+  usdc: "0xA0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+  usdt: "0xdAC17F958D2ee523a2206206994597C13D831ec7",
+  dai: "0x6B175474E89094C44Da98b954EedeAC495271d0F",
+  usds: "0xdC035D45d973E3EC169d2276DDab16f1e407384F",
+  wbtc: "0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599",
+  steth: "0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84",
+  wsteth: "0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0",
+  weeth: "0xCd5fE23C85820F7B72D0926FC9b05b43E359b7ee",
+  ezeth: "0xbf5495Efe5DB9ce00f80364C8B423567e58d2110",
+  reth: "0xae78736Cd615f374D3085123A210448E74Fc6393",
+  susde: "0x9D39A5DE30e57443BfF2A8307A4256c8797A3497",
+  usde: "0x4c9EDD5852cd905f086C759E8383e09bff1E68B3",
+  susds: "0xa3931d71877C0E7a3148CB7Eb4463524FEc27fbD",
+  sdai: "0x83F20F44975D03b1b09e64809B757c47f942BEeA",
+  rlp: "0x4956b52aE2fF65D74CA2d61207523288e4528f96",
+  usr: "0x66a1e37c9b0eaddca17d3662d6c05f4decf3e110",
+  wstusr: "0x1202f5c7b4b9e47a1a484e8b270be34dbbc75055",
+  cbbtc: "0xcbB7C0000aB88B473b1f5aFd9ef808440eed33Bf",
+  lbtc: "0x8236a87084f8B84306f72007F36F2618A5634494",
+  tbtc: "0x18084fbA666a33d37592fA2633fD49a74DD93a88",
+  oeth: "0x856c4Efb76C1D1AE02e20CEB03A2A6a08b0b8dC3",
+};
+
+export function tokenAddr(symbol: string): string | undefined {
+  return TOKEN_ADDR[symbol.toLowerCase()];
+}
+
 export function lookup(symbol: string | null | undefined): DepInfo | null {
   if (!symbol) return null;
   const s = symbol.toLowerCase().trim();
