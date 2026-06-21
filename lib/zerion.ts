@@ -7,6 +7,7 @@ export type ZPosition = {
   protocol: string;
   type: string; // deposit / staked / loan / reward / locked …
   chain: string;
+  address?: string; // contrat du token
 };
 
 const BASE = "https://api.zerion.io/v1";
@@ -15,13 +16,17 @@ function authHeader(key: string): string {
   return "Basic " + Buffer.from(`${key}:`).toString("base64");
 }
 
+// Zerion utilise ses propres chain ids (Gnosis = "xdai"). On normalise pour l'affichage.
+const ZERION_CHAIN: Record<string, string> = { xdai: "gnosis" };
+
 export async function getSafePositions(
-  address: string, chains: string[], key: string,
+  address: string, _chains: string[], key: string,
 ): Promise<ZPosition[]> {
+  // PAS de filtre de chaînes : les ids Zerion diffèrent des nôtres (gnosis≠xdai) et
+  // la liste client-configs est incomplète -> on lit toutes les chaînes pour ne rien perdre.
   const url = new URL(`${BASE}/wallets/${address}/positions/`);
-  url.searchParams.set("filter[positions]", "only_complex");
+  url.searchParams.set("filter[positions]", "no_filter");
   url.searchParams.set("currency", "usd");
-  url.searchParams.set("filter[chain_ids]", chains.join(","));
   try {
     let res: Response | null = null;
     for (let attempt = 0; attempt < 4; attempt++) {
@@ -40,13 +45,17 @@ export async function getSafePositions(
       const value = Number(a.value ?? 0);
       if (!value || value < 1000) continue; // ignore la poussière
       const fi = a.fungible_info ?? {};
-      const chain = it.relationships?.chain?.data?.id ?? "?";
+      const rawChain = it.relationships?.chain?.data?.id ?? "?";
+      const chain = ZERION_CHAIN[rawChain] ?? rawChain;
+      const impls = fi.implementations ?? [];
+      const impl = impls.find((i: { chain_id?: string }) => i.chain_id === rawChain) ?? impls[0];
       out.push({
         symbol: (fi.symbol ?? "?").toString(),
         value,
         protocol: (a.protocol ?? "wallet").toString(),
         type: (a.position_type ?? "?").toString(),
         chain,
+        address: impl?.address,
       });
     }
     return out;

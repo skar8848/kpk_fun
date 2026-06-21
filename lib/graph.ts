@@ -21,7 +21,12 @@ export type GraphNode = {
   dao?: string;
   version?: string;
   pending?: boolean; // positions à charger (ex: Safe en attente de Zerion)
-  address?: string; // contrat (vault/safe/marketId/token)
+  address?: string; // contrat (vault/safe/token)
+  oracleAddr?: string;
+  collateralAddr?: string;
+  loanAddr?: string;
+  marketId?: string;
+  note?: string; // statut (ex: "mandate ended 2025")
   pct?: number; // % du TVL total (root)
   type?: string; // type de position Zerion (deposit/staked/loan…)
   // métriques marché Morpho
@@ -77,7 +82,9 @@ export function buildGraph(reports: ScanReport[], rootLabel = "KPK"): Graph {
       addNode({
         id: mId, kind: "market", label: p.label, usd: p.usd, level: 2,
         severity: p.oracle.severity, flags: p.oracle.flags, chain: r.vault.chain,
-        address: p.metrics.marketId, lltvPct: p.metrics.lltvPct, utilPct: p.metrics.utilPct,
+        marketId: p.metrics.marketId, oracleAddr: p.metrics.oracleAddr,
+        collateralAddr: p.metrics.collateralAddr, loanAddr: p.metrics.loanAddr,
+        lltvPct: p.metrics.lltvPct, utilPct: p.metrics.utilPct,
         supplyApyPct: p.metrics.supplyApyPct, borrowApyPct: p.metrics.borrowApyPct,
         liquidityUsd: p.metrics.liquidityUsd,
       });
@@ -101,7 +108,7 @@ export function walkTree(
   addNode({
     id, kind: "asset", label: node.symbol, usd: node.usd, level: baseLevel,
     protocol: node.protocol, mechanism: node.mechanism, risk: node.risk,
-    unmapped: node.unmapped,
+    unmapped: node.unmapped, address: node.address,
     severity: node.unmapped ? "RED" : node.risk ? "YELLOW" : "OK",
   });
   addEdge(parentId, id);

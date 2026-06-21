@@ -44,9 +44,12 @@ export function buildFootprint(args: {
     const id = `entity::safe::${s.avatar.toLowerCase()}`;
     const positions = args.safePositions?.[s.avatar.toLowerCase()] ?? null;
     const total = positions ? positions.reduce((t, p) => t + p.value, 0) : 0;
+    const note = s.dao === "GnosisDAO" ? "mandate ended Nov 2025"
+      : s.dao === "Ethereum Foundation" ? "mandate to verify" : undefined;
     addNode({
       id, kind: "entity", label: s.label, usd: total, level: 2,
       dao: s.dao, chains: s.chains, pending: !positions, address: s.avatar,
+      note, severity: note ? "YELLOW" : undefined,
     });
     addEdge(g, id);
 
@@ -55,7 +58,8 @@ export function buildFootprint(args: {
       const pid = `pos::${id}::${p.protocol}::${p.symbol}::${p.chain}`;
       addNode({
         id: pid, kind: "market", label: `${p.symbol} · ${p.protocol}`, usd: p.value,
-        level: 3, protocol: p.protocol, mechanism: p.type, type: p.type, chain: p.chain, severity: "OK",
+        level: 3, protocol: p.protocol, mechanism: p.type, type: p.type, chain: p.chain,
+        severity: "OK", address: p.address,
       });
       addEdge(id, pid);
       // récursion sur le token sous-jacent → convergence vers les primitives
@@ -75,7 +79,8 @@ export function buildFootprint(args: {
       const mId = `market::${id}::${p.label}`;
       addNode({
         id: mId, kind: "market", label: p.label, usd: p.usd, level: 3, severity: p.oracle.severity,
-        flags: p.oracle.flags, chain: r.vault.chain, address: p.metrics.marketId,
+        flags: p.oracle.flags, chain: r.vault.chain, marketId: p.metrics.marketId,
+        oracleAddr: p.metrics.oracleAddr, collateralAddr: p.metrics.collateralAddr, loanAddr: p.metrics.loanAddr,
         lltvPct: p.metrics.lltvPct, utilPct: p.metrics.utilPct, supplyApyPct: p.metrics.supplyApyPct,
         borrowApyPct: p.metrics.borrowApyPct, liquidityUsd: p.metrics.liquidityUsd,
       });

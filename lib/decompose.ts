@@ -1,7 +1,7 @@
 // Moteur de décomposition d'exposition transitive (le différenciateur).
 // Port TS de reference/scanner/decompose.py.
 
-import { lookup, unknownToken } from "./knowledge";
+import { lookup, unknownToken, tokenAddr } from "./knowledge";
 import { analyzeOracle, contagionBuckets } from "./oracleRisk";
 import type { VaultNorm, TreeNode, Position, ExposureRow, Loop, ScanReport } from "./types";
 
@@ -11,7 +11,7 @@ export function resolveTree(symbol: string, usd: number, depth = 0, seen: Set<st
     symbol, usd, depth,
     protocol: info.protocol, mechanism: info.mechanism,
     yield_source: info.yield_source, risk: info.risk, kind: info.kind,
-    unmapped: !!info._unmapped, terminal: false, children: [],
+    unmapped: !!info._unmapped, terminal: false, address: tokenAddr(symbol), children: [],
   };
   const underlyings = info.underlying ?? [];
   const s = symbol.toLowerCase();
@@ -72,6 +72,8 @@ export function decompose(vault: VaultNorm): ScanReport {
     const label = `${col}/${loan}`;
 
     const tree = resolveTree(col, usd);
+    // adresse réelle (bonne chaîne) du collatéral du marché sur le nœud racine
+    if (m.collateralAsset?.address) tree.address = m.collateralAsset.address;
     const lf: Record<string, number> = {};
     leaves(tree, lf);
     for (const [k, v] of Object.entries(lf)) transitive[k] = (transitive[k] ?? 0) + v;
@@ -99,6 +101,7 @@ export function decompose(vault: VaultNorm): ScanReport {
         supplyApyPct: st?.supplyApy != null ? round(st.supplyApy * 100, 2) : undefined,
         borrowApyPct: st?.borrowApy != null ? round(st.borrowApy * 100, 2) : undefined,
         liquidityUsd: st?.liquidityAssetsUsd != null ? Number(st.liquidityAssetsUsd) : undefined,
+        oracleAddr: m.oracle?.address,
       },
     });
   }

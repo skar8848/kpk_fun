@@ -7,7 +7,7 @@ const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 export const metadata: Metadata = {
   title: "KPK Contagion Scanner",
   description:
-    "Décompose l'exposition transitive d'un vault Morpho jusqu'aux primitives de risque + analyse de fiabilité des oracles.",
+    "Maps KPK's on-chain footprint: transitive exposure of DAO treasuries and Morpho vaults down to risk primitives, with oracle reliability analysis.",
 };
 
 export default function RootLayout({

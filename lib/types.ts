@@ -43,6 +43,7 @@ export type MarketMetrics = {
   supplyApyPct?: number;
   borrowApyPct?: number;
   liquidityUsd?: number;
+  oracleAddr?: string;
 };
 
 export type VaultNorm = {
@@ -66,6 +67,7 @@ export type TreeNode = {
   kind?: string;
   unmapped: boolean;
   terminal: boolean;
+  address?: string;
   children: TreeNode[];
 };
 
