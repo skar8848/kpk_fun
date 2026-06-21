@@ -1,15 +1,18 @@
 "use client";
 
-import { useState } from "react";
-import type { ScanReport, TreeNode, Position } from "@/lib/types";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  ReactFlow, Background, Controls, MiniMap, Handle, Position,
+  type Node, type Edge, type NodeProps,
+} from "@xyflow/react";
+import "@xyflow/react/dist/style.css";
+import type { Graph, GraphNode } from "@/lib/graph";
 
 const PRESETS = [
-  { name: "Smokehouse USDC", addr: "0xBEeFFF209270748ddd194831b3fa287a5386f5bC", chain: "ethereum" },
-  { name: "Steakhouse USDC", addr: "0xBEEF01735c132Ada46AA9aA4c54623cAA92A64CB", chain: "ethereum" },
-  { name: "Gauntlet USDC Prime", addr: "0xdd0f28e19C1780eb6396170735D45153D261490d", chain: "ethereum" },
-  { name: "kpk USDC Yield (v1)", addr: "0x9178eBE0691593184c1D785a864B62a326cc3509", chain: "ethereum" },
+  { name: "Smokehouse USDC", addr: "0xBEeFFF209270748ddd194831b3fa287a5386f5bC" },
+  { name: "Steakhouse USDC", addr: "0xBEEF01735c132Ada46AA9aA4c54623cAA92A64CB" },
+  { name: "Gauntlet USDC Prime", addr: "0xdd0f28e19C1780eb6396170735D45153D261490d" },
 ];
-
 const CHAINS = ["ethereum", "base", "arbitrum", "optimism", "polygon", "unichain", "katana"];
 
 function usd(n: number) {
@@ -18,236 +21,183 @@ function usd(n: number) {
   if (n >= 1e3) return `$${(n / 1e3).toFixed(1)}k`;
   return `$${n.toFixed(0)}`;
 }
+const sevColor: Record<string, string> = { RED: "#eb365a", YELLOW: "#f5a623", OK: "#02c77b" };
 
-const sevColor: Record<string, string> = {
-  RED: "var(--red)", YELLOW: "var(--yellow)", OK: "var(--green)",
-};
+function KNode({ data, selected }: NodeProps) {
+  const d = data as unknown as GraphNode;
+  const accent =
+    d.kind === "root" ? "#55c3e9"
+    : d.kind === "entity" ? "#8898a8"
+    : sevColor[d.severity ?? "OK"];
+  return (
+    <div
+      className="rounded-lg px-3 py-1.5 text-xs"
+      style={{
+        background: d.kind === "root" ? "#55c3e9" : "#0c1218",
+        color: d.kind === "root" ? "#0a121c" : "#e8eef4",
+        border: `1px solid ${accent}`,
+        boxShadow: selected ? `0 0 0 2px ${accent}` : "none",
+        minWidth: 90,
+      }}
+    >
+      <Handle type="target" position={Position.Left} style={{ opacity: 0 }} />
+      <div className="font-medium flex items-center gap-1.5">
+        {d.kind !== "root" && d.kind !== "entity" && (
+          <span className="inline-block w-1.5 h-1.5 rounded-full" style={{ background: accent }} />
+        )}
+        <span className="mono">{d.label}</span>
+      </div>
+      {d.usd > 0 && <div className="mono opacity-60 text-[10px]">{usd(d.usd)}</div>}
+      {d.protocol && d.protocol !== "-" && d.protocol !== "?" && (
+        <div className="text-[9px] opacity-50">{d.protocol}</div>
+      )}
+      <Handle type="source" position={Position.Right} style={{ opacity: 0 }} />
+    </div>
+  );
+}
+const nodeTypes = { k: KNode };
+
+function layout(graph: Graph): { nodes: Node[]; edges: Edge[] } {
+  const byLevel = new Map<number, GraphNode[]>();
+  for (const n of graph.nodes) (byLevel.get(n.level) ?? byLevel.set(n.level, []).get(n.level)!).push(n);
+  const COL = 230, ROW = 64;
+  const nodes: Node[] = [];
+  for (const [lvl, arr] of [...byLevel.entries()].sort((a, b) => a[0] - b[0])) {
+    arr.sort((a, b) => b.usd - a.usd);
+    const h = (arr.length - 1) * ROW;
+    arr.forEach((n, i) => {
+      nodes.push({
+        id: n.id, type: "k",
+        position: { x: lvl * COL, y: i * ROW - h / 2 },
+        data: n as unknown as Record<string, unknown>,
+      });
+    });
+  }
+  const edges: Edge[] = graph.edges.map((e) => ({
+    id: e.id, source: e.source, target: e.target,
+    style: { stroke: "rgba(255,255,255,0.12)" }, animated: false,
+  }));
+  return { nodes, edges };
+}
 
 export default function Home() {
   const [addr, setAddr] = useState(PRESETS[0].addr);
   const [chain, setChain] = useState("ethereum");
-  const [report, setReport] = useState<ScanReport | null>(null);
+  const [graph, setGraph] = useState<Graph | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [sel, setSel] = useState<GraphNode | null>(null);
 
-  async function scan(a = addr, c = chain) {
-    setLoading(true); setError(null); setReport(null);
+  const load = useCallback(async (a: string, c: string) => {
+    setLoading(true); setError(null); setSel(null);
     try {
-      const res = await fetch(`/api/scan?address=${a}&chain=${c}`);
+      const res = await fetch(`/api/graph?address=${a}&chain=${c}`);
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "erreur");
-      setReport(data);
+      setGraph(data.graph);
     } catch (e) {
       setError(String(e instanceof Error ? e.message : e));
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
+
+  useEffect(() => { load(PRESETS[0].addr, "ethereum"); }, [load]);
+
+  const { nodes, edges } = useMemo(() => (graph ? layout(graph) : { nodes: [], edges: [] }), [graph]);
 
   return (
-    <main className="max-w-5xl mx-auto px-5 py-10">
-      <header className="mb-8">
-        <h1 className="text-2xl font-semibold tracking-tight">
-          KPK <span className="text-primary">Contagion Scanner</span>
-        </h1>
-        <p className="text-muted-fg text-sm mt-1 max-w-2xl">
-          Décompose l&apos;exposition <span className="text-fg">transitive</span> d&apos;un vault Morpho
-          jusqu&apos;aux primitives de risque. <span className="mono">sUSDe → USDe (delta-neutral Ethena) → USDT</span>.
-          Détecte loops, leverage implicite et oracles fragiles (leçon Resolv).
-        </p>
+    <div className="h-screen flex flex-col">
+      {/* barre de contrôle */}
+      <header className="border-b border-border px-4 py-3 flex items-center gap-3 flex-wrap">
+        <div className="font-semibold tracking-tight mr-2">
+          KPK <span className="text-primary">Contagion Canvas</span>
+        </div>
+        <input
+          value={addr} onChange={(e) => setAddr(e.target.value)}
+          placeholder="0x… vault Morpho v1"
+          className="flex-1 min-w-50 bg-bg border border-border rounded-lg px-3 py-1.5 text-sm mono outline-none focus:border-primary"
+        />
+        <select value={chain} onChange={(e) => setChain(e.target.value)}
+          className="bg-bg border border-border rounded-lg px-2 py-1.5 text-sm outline-none">
+          {CHAINS.map((c) => <option key={c} value={c}>{c}</option>)}
+        </select>
+        <button onClick={() => load(addr, chain)} disabled={loading}
+          className="bg-primary text-bg font-medium rounded-lg px-4 py-1.5 text-sm disabled:opacity-50">
+          {loading ? "…" : "Scan"}
+        </button>
+        {PRESETS.map((p) => (
+          <button key={p.addr} onClick={() => { setAddr(p.addr); load(p.addr, "ethereum"); }}
+            className="text-xs text-muted-fg hover:text-primary border border-border rounded-full px-3 py-1">
+            {p.name}
+          </button>
+        ))}
       </header>
 
-      <div className="card p-4 mb-6">
-        <div className="flex flex-col sm:flex-row gap-2">
-          <input
-            value={addr}
-            onChange={(e) => setAddr(e.target.value)}
-            placeholder="0x… adresse de vault Morpho v1"
-            className="flex-1 bg-bg border border-border rounded-lg px-3 py-2 text-sm mono outline-none focus:border-primary"
-          />
-          <select
-            value={chain}
-            onChange={(e) => setChain(e.target.value)}
-            className="bg-bg border border-border rounded-lg px-3 py-2 text-sm outline-none focus:border-primary"
-          >
-            {CHAINS.map((c) => <option key={c} value={c}>{c}</option>)}
-          </select>
-          <button
-            onClick={() => scan()}
-            disabled={loading}
-            className="bg-primary text-bg font-medium rounded-lg px-5 py-2 text-sm disabled:opacity-50"
-          >
-            {loading ? "Scan…" : "Scanner"}
-          </button>
-        </div>
-        <div className="flex flex-wrap gap-2 mt-3">
-          {PRESETS.map((p) => (
-            <button
-              key={p.addr}
-              onClick={() => { setAddr(p.addr); setChain(p.chain); scan(p.addr, p.chain); }}
-              className="text-xs text-muted-fg hover:text-primary border border-border rounded-full px-3 py-1"
-            >
-              {p.name}
-            </button>
-          ))}
-        </div>
-      </div>
+      {error && <div className="px-4 py-2 text-red text-sm border-b border-border">{error}</div>}
 
-      {error && (
-        <div className="card p-4 mb-6 border-l-2" style={{ borderLeftColor: "var(--red)" }}>
-          <span className="text-red text-sm">{error}</span>
+      <div className="flex-1 relative">
+        <ReactFlow
+          nodes={nodes} edges={edges} nodeTypes={nodeTypes}
+          fitView minZoom={0.1} maxZoom={2}
+          onNodeClick={(_, n) => setSel(n.data as unknown as GraphNode)}
+          proOptions={{ hideAttribution: true }}
+          colorMode="dark"
+        >
+          <Background color="#1a2430" gap={20} />
+          <Controls showInteractive={false} />
+          <MiniMap pannable zoomable nodeColor={(n) => {
+            const d = n.data as unknown as GraphNode;
+            return d.kind === "root" ? "#55c3e9" : d.kind === "entity" ? "#586878" : sevColor[d.severity ?? "OK"];
+          }} maskColor="rgba(10,18,28,0.6)" style={{ background: "#0c1218" }} />
+        </ReactFlow>
+
+        {/* légende */}
+        <div className="absolute top-3 left-3 card p-2.5 text-[11px] space-y-1 z-10">
+          <div className="text-muted-fg uppercase tracking-wider mb-1">Légende</div>
+          <Legend c="#55c3e9" t="entité KPK / vault" />
+          <Legend c={sevColor.OK} t="marché / actif sain" />
+          <Legend c={sevColor.YELLOW} t="risque (NAV, peg exotique, risk tag)" />
+          <Legend c={sevColor.RED} t="oracle opaque / bad debt / non mappé" />
+          <div className="text-muted-fg pt-1">→ vers la droite = plus profond dans la chaîne de risque</div>
         </div>
-      )}
 
-      {report && <Report report={report} />}
-    </main>
-  );
-}
-
-function Report({ report }: { report: ScanReport }) {
-  const top = report.transitive_exposure.filter((r) => r.usd > 0).slice(0, 10);
-  const maxPct = Math.max(...top.map((r) => r.pct), 1);
-  return (
-    <div className="space-y-6">
-      <div className="card p-4">
-        <div className="flex items-baseline justify-between flex-wrap gap-2">
-          <div>
-            <span className="font-medium">{report.vault.name}</span>
-            <span className="text-muted-fg text-xs ml-2">{report.vault.version} · {report.vault.chain}</span>
-          </div>
-          <span className="mono text-primary text-lg">{usd(report.tvlUsd)}</span>
-        </div>
-        <div className="mono text-xs text-muted mt-1 break-all">{report.vault.address}</div>
-      </div>
-
-      <Section title="Exposition transitive" subtitle="primitives de risque, récursion dépliée">
-        <div className="space-y-1.5">
-          {top.map((r) => (
-            <div key={r.name} className="flex items-center gap-3 text-sm">
-              <span className="w-32 shrink-0 mono">{r.name}</span>
-              <div className="flex-1 h-5 bg-bg rounded overflow-hidden">
-                <div className="h-full rounded" style={{ width: `${(r.pct / maxPct) * 100}%`, background: "var(--primary)" }} />
-              </div>
-              <span className="w-14 text-right mono text-muted-fg">{r.pct.toFixed(1)}%</span>
-              <span className="w-16 text-right mono">{usd(r.usd)}</span>
+        {/* panneau détail */}
+        {sel && (
+          <div className="absolute top-3 right-3 w-72 card p-4 z-10">
+            <div className="flex justify-between items-start">
+              <span className="font-medium mono">{sel.label}</span>
+              <button onClick={() => setSel(null)} className="text-muted-fg hover:text-fg">✕</button>
             </div>
-          ))}
-        </div>
-      </Section>
-
-      <Section title="Exposition par protocole" subtitle="tous les niveaux de la chaîne">
-        <div className="flex flex-wrap gap-2">
-          {report.protocol_exposure.filter((r) => r.usd > 0).map((r) => (
-            <span key={r.name} className="text-xs border border-border rounded-full px-3 py-1">
-              <span className="text-fg">{r.name}</span>{" "}
-              <span className="text-muted-fg mono">{r.pct.toFixed(1)}% · {usd(r.usd)}</span>
-            </span>
-          ))}
-        </div>
-      </Section>
-
-      {Object.keys(report.oracle_contagion).length > 0 && (
-        <Section title="Contagion oracle" subtitle="si l'hypothèse casse → $ exposés">
-          <div className="space-y-1.5">
-            {Object.entries(report.oracle_contagion).map(([k, b]) => {
-              const risky = !k.startsWith("peg_assumption");
-              return (
-                <div key={k} className="flex items-center justify-between text-sm gap-3">
-                  <span className="mono" style={{ color: risky ? "var(--yellow)" : "var(--muted-fg)" }}>{k}</span>
-                  <span className="text-muted-fg text-xs flex-1 truncate">{b.examples.slice(0, 3).join(", ")}</span>
-                  <span className="mono">{b.markets} mkts</span>
-                  <span className="mono w-16 text-right">{usd(b.usd)}</span>
-                </div>
-              );
-            })}
+            <div className="text-xs text-muted-fg mt-0.5">{sel.kind}{sel.chain ? ` · ${sel.chain}` : ""}</div>
+            <div className="mono text-primary text-lg mt-2">{usd(sel.usd)}</div>
+            <dl className="text-xs mt-3 space-y-1.5">
+              {sel.protocol && sel.protocol !== "-" && sel.protocol !== "?" && <Row k="protocole" v={sel.protocol} />}
+              {sel.mechanism && <Row k="mécanisme" v={sel.mechanism} />}
+              {sel.risk && <Row k="risque" v={sel.risk} accent="#f5a623" />}
+              {sel.unmapped && <Row k="statut" v="❓ collatéral non mappé" accent="#eb365a" />}
+              {sel.flags && sel.flags.length > 0 && <Row k="oracle" v={sel.flags.join(", ")} accent={sevColor[sel.severity ?? "OK"]} />}
+            </dl>
           </div>
-        </Section>
-      )}
-
-      {report.loops.length > 0 && (
-        <Section title="Structures de carry / loop" subtitle="collat partage l'underlying du loan">
-          <div className="space-y-1 text-sm">
-            {report.loops.map((l, i) => (
-              <div key={i} className="flex justify-between mono">
-                <span>{l.market}</span>
-                <span className="text-muted-fg">LLTV {l.lltv_pct}% → ≤ {l.max_leverage_x ?? "?"}x</span>
-              </div>
-            ))}
-          </div>
-        </Section>
-      )}
-
-      <Section title="Positions" subtitle="collatéral → arbre de dépendances">
-        <div className="space-y-3">
-          {report.positions.filter((p) => p.usd > 0).slice(0, 20).map((p, i) => (
-            <PositionCard key={i} p={p} />
-          ))}
-        </div>
-      </Section>
-
-      {report.unmapped.length > 0 && (
-        <div className="card p-4 border-l-2" style={{ borderLeftColor: "var(--yellow)" }}>
-          <div className="text-yellow text-sm font-medium mb-1">⚠ Collatéraux non mappés</div>
-          <div className="text-muted-fg text-xs">
-            Pas de faux négatif silencieux — à ajouter à <span className="mono">knowledge.ts</span> :{" "}
-            <span className="mono text-fg">{report.unmapped.join(", ")}</span>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function PositionCard({ p }: { p: Position }) {
-  return (
-    <div className="card p-3">
-      <div className="flex items-center justify-between text-sm">
-        <div className="flex items-center gap-2">
-          <span className="inline-block w-2 h-2 rounded-full" style={{ background: sevColor[p.oracle.severity] }} />
-          <span className="font-medium mono">{p.label}</span>
-        </div>
-        <span className="mono text-muted-fg">{usd(p.usd)} · {p.pct}% · LLTV {p.lltv_pct}%</span>
-      </div>
-      {p.oracle.flags.length > 0 && (
-        <div className="text-xs mt-1.5" style={{ color: sevColor[p.oracle.severity] }}>
-          oracle: {p.oracle.flags.join(", ")}
-        </div>
-      )}
-      <div className="mt-2 pl-1">
-        <TreeView node={p.tree} root />
+        )}
       </div>
     </div>
   );
 }
 
-function TreeView({ node, root = false }: { node: TreeNode; root?: boolean }) {
-  const tags: string[] = [];
-  if (node.protocol && node.protocol !== "-" && node.protocol !== "?") tags.push(node.protocol);
-  if (node.mechanism) tags.push(node.mechanism);
+function Legend({ c, t }: { c: string; t: string }) {
   return (
-    <div className={root ? "" : "ml-4 border-l border-border pl-3"}>
-      <div className="text-xs flex items-center gap-2 flex-wrap py-0.5">
-        <span className="mono text-fg">{node.symbol}</span>
-        <span className="mono text-muted">{usd(node.usd)}</span>
-        {tags.map((t) => (
-          <span key={t} className="text-[10px] text-muted-fg border border-border rounded px-1">{t}</span>
-        ))}
-        {node.risk && <span className="text-[10px] text-yellow">⚠ {node.risk}</span>}
-        {node.unmapped && <span className="text-[10px] text-red">❓ UNMAPPED</span>}
-      </div>
-      {node.children.map((c, i) => <TreeView key={i} node={c} />)}
+    <div className="flex items-center gap-2">
+      <span className="inline-block w-2.5 h-2.5 rounded" style={{ background: c }} />
+      <span className="text-muted-fg">{t}</span>
     </div>
   );
 }
-
-function Section({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) {
+function Row({ k, v, accent }: { k: string; v: string; accent?: string }) {
   return (
-    <section>
-      <div className="flex items-baseline gap-2 mb-3">
-        <h2 className="text-sm font-semibold uppercase tracking-wider text-fg">{title}</h2>
-        {subtitle && <span className="text-xs text-muted">{subtitle}</span>}
-      </div>
-      <div className="card p-4">{children}</div>
-    </section>
+    <div>
+      <dt className="text-muted uppercase tracking-wider text-[10px]">{k}</dt>
+      <dd className="mono" style={{ color: accent ?? "var(--fg)" }}>{v}</dd>
+    </div>
   );
 }
