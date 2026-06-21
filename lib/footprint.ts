@@ -80,7 +80,8 @@ export function buildFootprint(args: {
       addNode({
         id: mId, kind: "market", label: p.label, usd: p.usd, level: 3, severity: p.oracle.severity,
         flags: p.oracle.flags, chain: r.vault.chain, marketId: p.metrics.marketId,
-        oracleAddr: p.metrics.oracleAddr, collateralAddr: p.metrics.collateralAddr, loanAddr: p.metrics.loanAddr,
+        oracleAddr: p.metrics.oracleAddr, oracleType: p.oracle.oracle_type ?? undefined,
+        collateralAddr: p.metrics.collateralAddr, loanAddr: p.metrics.loanAddr,
         lltvPct: p.metrics.lltvPct, utilPct: p.metrics.utilPct, supplyApyPct: p.metrics.supplyApyPct,
         borrowApyPct: p.metrics.borrowApyPct, liquidityUsd: p.metrics.liquidityUsd,
       });

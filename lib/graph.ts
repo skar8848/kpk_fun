@@ -23,6 +23,7 @@ export type GraphNode = {
   pending?: boolean; // positions à charger (ex: Safe en attente de Zerion)
   address?: string; // contrat (vault/safe/token)
   oracleAddr?: string;
+  oracleType?: string;
   collateralAddr?: string;
   loanAddr?: string;
   marketId?: string;
@@ -82,7 +83,7 @@ export function buildGraph(reports: ScanReport[], rootLabel = "KPK"): Graph {
       addNode({
         id: mId, kind: "market", label: p.label, usd: p.usd, level: 2,
         severity: p.oracle.severity, flags: p.oracle.flags, chain: r.vault.chain,
-        marketId: p.metrics.marketId, oracleAddr: p.metrics.oracleAddr,
+        marketId: p.metrics.marketId, oracleAddr: p.metrics.oracleAddr, oracleType: p.oracle.oracle_type ?? undefined,
         collateralAddr: p.metrics.collateralAddr, loanAddr: p.metrics.loanAddr,
         lltvPct: p.metrics.lltvPct, utilPct: p.metrics.utilPct,
         supplyApyPct: p.metrics.supplyApyPct, borrowApyPct: p.metrics.borrowApyPct,

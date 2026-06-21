@@ -8,7 +8,7 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import type { Graph, GraphNode } from "@/lib/graph";
-import { explorerAddr, shortAddr } from "@/lib/explorer";
+import { explorerAddr, shortAddr, oracleVendor } from "@/lib/explorer";
 import Stats from "@/components/Stats";
 
 const PRESETS = [
@@ -126,7 +126,9 @@ export default function Home() {
     fetchGraph(`/api/footprint${fresh ? "?fresh=1" : ""}`, "Mapping KPK footprint… (first load ~25s, then cached)", () => loadFootprint(true));
   }, [fetchGraph]);
 
-  useEffect(() => { load(PRESETS[0].addr, "ethereum"); }, [load]);
+  const [hideDeprecated, setHideDeprecated] = useState(false);
+
+  useEffect(() => { loadFootprint(); }, [loadFootprint]); // KPK footprint by default
 
   // controlled state: drags persist, edges follow
   const [rfNodes, setRfNodes, onNodesChange] = useNodesState<Node>([]);
@@ -156,19 +158,40 @@ export default function Home() {
     return { eids, nids };
   }, [sel, graph]);
 
+  // deprecated (mandate ended / to verify) : entité + ses positions exclusives, + groupe si tout est masqué
+  const hiddenIds = useMemo(() => {
+    const h = new Set<string>();
+    if (!hideDeprecated || !graph) return h;
+    const dep = new Set(graph.nodes.filter((n) => n.note).map((n) => n.id));
+    dep.forEach((d) => h.add(d));
+    for (const e of graph.edges) {
+      if (dep.has(e.source) && (e.target.startsWith("market::") || e.target.startsWith("pos::"))) h.add(e.target);
+    }
+    // groupe masqué si toutes ses entités le sont
+    for (const g of graph.nodes.filter((n) => n.kind === "group")) {
+      const kids = graph.edges.filter((e) => e.source === g.id).map((e) => e.target);
+      if (kids.length && kids.every((k) => h.has(k))) h.add(g.id);
+    }
+    return h;
+  }, [hideDeprecated, graph]);
+
   const displayNodes = useMemo(() => rfNodes.map((n) => ({
-    ...n, style: { ...n.style, opacity: hl && !hl.nids.has(n.id) ? 0.18 : 1, transition: "opacity .15s" },
-  })), [rfNodes, hl]);
+    ...n, hidden: hiddenIds.has(n.id),
+    style: { ...n.style, opacity: hl && !hl.nids.has(n.id) ? 0.18 : 1, transition: "opacity .15s" },
+  })), [rfNodes, hl, hiddenIds]);
 
   const displayEdges = useMemo(() => rfEdges.map((e) => {
     const on = hl?.eids.has(e.id);
-    return { ...e, animated: !!on, style: { stroke: on ? "#55c3e9" : hl ? "rgba(255,255,255,0.04)" : "rgba(255,255,255,0.12)", strokeWidth: on ? 2 : 1 } };
-  }), [rfEdges, hl]);
+    return {
+      ...e, hidden: hiddenIds.has(e.source) || hiddenIds.has(e.target), animated: !!on,
+      style: { stroke: on ? "#55c3e9" : hl ? "rgba(255,255,255,0.04)" : "rgba(255,255,255,0.12)", strokeWidth: on ? 2 : 1 },
+    };
+  }), [rfEdges, hl, hiddenIds]);
 
   return (
     <div className="h-screen flex flex-col">
       <header className="border-b border-border px-4 py-3 flex items-center gap-3 flex-wrap">
-        <div className="font-semibold tracking-tight mr-2">KPK <span className="text-primary">Contagion Canvas</span></div>
+        <div className="font-semibold tracking-tight mr-2">KPK <span className="text-primary">Explorer</span></div>
         <input
           value={addr} onChange={(e) => setAddr(e.target.value)} placeholder="0x… Morpho vault"
           className="flex-1 min-w-50 bg-bg border border-border rounded-lg px-3 py-1.5 text-sm mono outline-none focus:border-primary"
@@ -183,6 +206,12 @@ export default function Home() {
           className="border border-primary text-primary font-medium rounded-lg px-4 py-1.5 text-sm disabled:opacity-50">🌐 KPK Footprint</button>
         <button onClick={() => setShowStats((s) => !s)} disabled={!graph}
           className="border border-border text-fg rounded-lg px-3 py-1.5 text-sm disabled:opacity-40">📊 Stats</button>
+        <button onClick={() => setHideDeprecated((s) => !s)} disabled={!graph}
+          title="hide entities with an ended/unverified mandate"
+          className="rounded-lg px-3 py-1.5 text-sm disabled:opacity-40 border"
+          style={{ borderColor: hideDeprecated ? "#f5a623" : "var(--border)", color: hideDeprecated ? "#f5a623" : "var(--muted-fg)" }}>
+          {hideDeprecated ? "Deprecated: hidden" : "Deprecated: shown"}
+        </button>
         <button onClick={() => refresh?.()} disabled={loading || !refresh} title="recompute (bypass cache)"
           className="border border-border text-muted-fg hover:text-fg rounded-lg px-3 py-1.5 text-sm disabled:opacity-40">↻</button>
         {meta.fromCache && <span className="text-[10px] text-muted-fg">⚡ cached</span>}
@@ -259,7 +288,7 @@ export default function Home() {
               {sel.address && <AddrRow k="contract" chain={sel.chain} a={sel.address} />}
               {sel.collateralAddr && <AddrRow k="collateral" chain={sel.chain} a={sel.collateralAddr} />}
               {sel.loanAddr && <AddrRow k="loan asset" chain={sel.chain} a={sel.loanAddr} />}
-              {sel.oracleAddr && <AddrRow k="oracle" chain={sel.chain} a={sel.oracleAddr} />}
+              {sel.oracleAddr && <AddrRow k={`oracle · ${oracleVendor(sel.oracleType, sel.oracleAddr)}`} chain={sel.chain} a={sel.oracleAddr} />}
             </dl>
           </div>
         )}

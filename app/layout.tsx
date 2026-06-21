@@ -5,7 +5,7 @@ import "./globals.css";
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 
 export const metadata: Metadata = {
-  title: "KPK Contagion Scanner",
+  title: "KPK Explorer",
   description:
     "Maps KPK's on-chain footprint: transitive exposure of DAO treasuries and Morpho vaults down to risk primitives, with oracle reliability analysis.",
 };

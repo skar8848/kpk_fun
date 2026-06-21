@@ -17,3 +17,18 @@ export function explorerAddr(chain: string | undefined, address: string): string
 export function shortAddr(a: string): string {
   return `${a.slice(0, 6)}…${a.slice(-4)}`;
 }
+
+// Overrides connus oracle/feed -> vendor (extensible). Sinon déduit du type Morpho.
+const VENDOR_BY_ADDR: Record<string, string> = {
+  // ex: "0x...": "Pyth" / "RedStone" (à compléter au besoin)
+};
+
+export function oracleVendor(type?: string | null, addr?: string | null): string {
+  if (addr && VENDOR_BY_ADDR[addr.toLowerCase()]) return VENDOR_BY_ADDR[addr.toLowerCase()];
+  const t = (type ?? "").toLowerCase();
+  if (t.includes("chainlink")) return "Chainlink";
+  if (t.includes("pyth")) return "Pyth";
+  if (t.includes("redstone")) return "RedStone";
+  if (t === "unknown" || t === "") return "Unknown";
+  return "Custom";
+}
