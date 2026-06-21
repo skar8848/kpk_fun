@@ -10,6 +10,7 @@ import "@xyflow/react/dist/style.css";
 import type { Graph, GraphNode } from "@/lib/graph";
 import { explorerAddr, shortAddr, oracleVendor } from "@/lib/explorer";
 import Stats from "@/components/Stats";
+import Dashboard from "@/components/Dashboard";
 
 const PRESETS = [
   { name: "Smokehouse USDC", addr: "0xBEeFFF209270748ddd194831b3fa287a5386f5bC" },
@@ -127,6 +128,7 @@ export default function Home() {
   }, [fetchGraph]);
 
   const [hideDeprecated, setHideDeprecated] = useState(false);
+  const [view, setView] = useState<"canvas" | "dashboard">("canvas");
 
   useEffect(() => { loadFootprint(); }, [loadFootprint]); // KPK footprint by default
 
@@ -191,7 +193,11 @@ export default function Home() {
   return (
     <div className="h-screen flex flex-col">
       <header className="border-b border-border px-4 py-3 flex items-center gap-3 flex-wrap">
-        <div className="font-semibold tracking-tight mr-2">KPK <span className="text-primary">Explorer</span></div>
+        <div className="font-semibold tracking-tight mr-1">KPK <span className="text-primary">Explorer</span></div>
+        <div className="flex rounded-lg border border-border overflow-hidden text-sm mr-1">
+          <button onClick={() => setView("canvas")} className={`px-3 py-1.5 ${view === "canvas" ? "bg-primary text-bg" : "text-muted-fg"}`}>Canvas</button>
+          <button onClick={() => setView("dashboard")} className={`px-3 py-1.5 ${view === "dashboard" ? "bg-primary text-bg" : "text-muted-fg"}`}>Dashboard</button>
+        </div>
         <input
           value={addr} onChange={(e) => setAddr(e.target.value)} placeholder="0x… Morpho vault"
           className="flex-1 min-w-50 bg-bg border border-border rounded-lg px-3 py-1.5 text-sm mono outline-none focus:border-primary"
@@ -224,6 +230,14 @@ export default function Home() {
       {error && <div className="px-4 py-2 text-red text-sm border-b border-border">{error}</div>}
 
       <div className="flex-1 relative">
+        {loading && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center z-30 backdrop-blur-sm" style={{ background: "rgba(10,18,28,0.6)" }}>
+            <div className="w-8 h-8 rounded-full border-2 border-border border-t-primary animate-spin" />
+            <div className="text-sm text-muted-fg mt-3">{loadingMsg}</div>
+          </div>
+        )}
+        {view === "dashboard" && graph && <Dashboard graph={graph} />}
+        {view === "canvas" && (<>
         <ReactFlow
           nodes={displayNodes} edges={displayEdges} nodeTypes={nodeTypes}
           onNodesChange={onNodesChange} onEdgesChange={onEdgesChange}
@@ -239,13 +253,6 @@ export default function Home() {
             return d.kind === "root" || d.kind === "group" ? "#55c3e9" : d.kind === "entity" ? "#586878" : sevColor[d.severity ?? "OK"];
           }} maskColor="rgba(10,18,28,0.6)" style={{ background: "#0c1218" }} />
         </ReactFlow>
-
-        {loading && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center bg-bg/60 z-30 backdrop-blur-sm">
-            <div className="w-8 h-8 rounded-full border-2 border-border border-t-primary animate-spin" />
-            <div className="text-sm text-muted-fg mt-3">{loadingMsg}</div>
-          </div>
-        )}
 
         <div className="absolute top-3 left-3 card p-2.5 text-[11px] space-y-1 z-10">
           <div className="text-muted-fg uppercase tracking-wider mb-1">Legend</div>
@@ -294,6 +301,7 @@ export default function Home() {
         )}
 
         {showStats && graph && <Stats graph={graph} onClose={() => setShowStats(false)} />}
+        </>)}
       </div>
     </div>
   );
