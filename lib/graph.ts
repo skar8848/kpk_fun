@@ -6,7 +6,7 @@ import type { ScanReport, TreeNode } from "./types";
 
 export type GraphNode = {
   id: string;
-  kind: "root" | "entity" | "market" | "asset";
+  kind: "root" | "group" | "entity" | "market" | "asset";
   label: string;
   usd: number;
   level: number;
@@ -16,7 +16,11 @@ export type GraphNode = {
   risk?: string;
   unmapped?: boolean;
   chain?: string;
+  chains?: string[];
   flags?: string[];
+  dao?: string;
+  version?: string;
+  pending?: boolean; // positions à charger (ex: Safe en attente de Zerion)
 };
 
 export type GraphEdge = { id: string; source: string; target: string };
@@ -67,7 +71,7 @@ export function buildGraph(reports: ScanReport[], rootLabel = "KPK"): Graph {
 }
 
 // Les nœuds "asset" sont dédoublonnés par symbole → convergence visuelle.
-function walkTree(
+export function walkTree(
   node: TreeNode, parentId: string, baseLevel: number,
   addNode: (n: GraphNode) => void, addEdge: (s: string, t: string) => void,
 ) {
@@ -83,7 +87,7 @@ function walkTree(
 }
 
 // Longest-path layering : chaque nœud se place à droite de tous ses parents.
-function relevel(nodes: GraphNode[], edges: GraphEdge[]) {
+export function relevel(nodes: GraphNode[], edges: GraphEdge[]) {
   const byId = new Map(nodes.map((n) => [n.id, n]));
   const incoming = new Map<string, string[]>();
   for (const e of edges) (incoming.get(e.target) ?? incoming.set(e.target, []).get(e.target)!).push(e.source);
