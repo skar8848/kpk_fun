@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import type { Graph, GraphNode } from "@/lib/graph";
-import { explorerAddr, shortAddr, oracleVendor } from "@/lib/explorer";
+import { explorerAddr, shortAddr, oracleVendor, chainLabel } from "@/lib/explorer";
 
 function usd(n: number) {
   if (n >= 1e9) return `$${(n / 1e9).toFixed(2)}B`;
@@ -129,7 +129,7 @@ export default function Dashboard({ graph }: { graph: Graph }) {
           { key: "sapy", label: "Supply APY", num: true, render: (r) => <span style={{ color: "#02c77b" }}>{Number(r.sapy).toFixed(2)}%</span> },
           { key: "bapy", label: "Borrow APY", num: true, render: (r) => <span style={{ color: "#f5a623" }}>{Number(r.bapy).toFixed(2)}%</span> },
           { key: "oracle", label: "Oracle", render: (r) => { const n = r.n as GraphNode; return n.oracleAddr ? <a className="text-primary hover:underline" href={explorerAddr(n.chain, n.oracleAddr)} target="_blank" rel="noreferrer">{oracleVendor(n.oracleType, n.oracleAddr)} ↗</a> : "—"; } },
-          { key: "chain", label: "Chain" },
+          { key: "chain", label: "Chain", render: (r) => chainLabel(String(r.chain)) },
         ]} />
       </Section>
 
@@ -140,7 +140,7 @@ export default function Dashboard({ graph }: { graph: Graph }) {
         <SortableTable initial="tvl" rows={positions} cols={[
           { key: "asset", label: "Position" }, { key: "protocol", label: "Protocol" }, { key: "type", label: "Type" },
           { key: "tvl", label: "Value", num: true, render: (r) => usd(Number(r.tvl)) },
-          { key: "chain", label: "Chain" },
+          { key: "chain", label: "Chain", render: (r) => chainLabel(String(r.chain)) },
           { key: "addr", label: "Token", render: (r) => { const n = r.n as GraphNode; return n.address ? <a className="text-primary hover:underline" href={explorerAddr(n.chain, n.address)} target="_blank" rel="noreferrer">{shortAddr(n.address)} ↗</a> : "—"; } },
         ]} />
         )}

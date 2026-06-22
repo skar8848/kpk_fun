@@ -17,7 +17,7 @@ function authHeader(key: string): string {
 }
 
 // Zerion utilise ses propres chain ids (Gnosis = "xdai"). On normalise pour l'affichage.
-const ZERION_CHAIN: Record<string, string> = { xdai: "gnosis" };
+const ZERION_CHAIN: Record<string, string> = { xdai: "gnosis", "binance-smart-chain": "bsc" };
 
 export async function getSafePositions(
   address: string, _chains: string[], key: string,

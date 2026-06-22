@@ -7,7 +7,15 @@ const EXPLORER: Record<string, string> = {
   optimism: "https://optimistic.etherscan.io",
   polygon: "https://polygonscan.com",
   unichain: "https://uniscan.xyz",
+  bsc: "https://bscscan.com",
 };
+
+// Affichage joli des chaînes (BSC en majuscules, etc.)
+const CHAIN_LABEL: Record<string, string> = { bsc: "BSC" };
+export function chainLabel(c?: string | null): string {
+  if (!c) return "";
+  return CHAIN_LABEL[c] ?? c;
+}
 
 export function explorerAddr(chain: string | undefined, address: string): string {
   const base = EXPLORER[chain ?? "ethereum"] ?? EXPLORER.ethereum;

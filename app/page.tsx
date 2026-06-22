@@ -8,7 +8,7 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import type { Graph, GraphNode } from "@/lib/graph";
-import { explorerAddr, shortAddr, oracleVendor } from "@/lib/explorer";
+import { explorerAddr, shortAddr, oracleVendor, chainLabel } from "@/lib/explorer";
 import Stats from "@/components/Stats";
 import Dashboard from "@/components/Dashboard";
 
@@ -18,8 +18,11 @@ const PRESETS = [
   { name: "KPK USDC Prime", addr: "0x4ef53d2caa51c447fdfeeedee8f07fd1962c9ee6" },
 ];
 const CHAINS = ["ethereum", "base", "arbitrum", "optimism", "polygon", "unichain", "katana"];
-const LOGO_CHAINS = new Set(["ethereum", "arbitrum", "base", "optimism"]);
-const chainLogo = (c?: string) => `/chains/${c && LOGO_CHAINS.has(c) ? c : "_fallback"}.svg`;
+const CHAIN_LOGO: Record<string, string> = {
+  ethereum: "ethereum.svg", arbitrum: "arbitrum.svg", base: "base.svg",
+  optimism: "optimism.svg", gnosis: "gnosis.png", bsc: "bsc.svg",
+};
+const chainLogo = (c?: string) => `/chains/${(c && CHAIN_LOGO[c]) || "_fallback.svg"}`;
 
 function usd(n: number) {
   if (n >= 1e9) return `$${(n / 1e9).toFixed(2)}B`;
@@ -206,7 +209,7 @@ export default function Home() {
           onChange={(e) => setAddr(e.target.value)}
           onFocus={() => setAddrFocused(true)} onBlur={() => setAddrFocused(false)}
           placeholder="0x… Morpho vault"
-          className="flex-1 min-w-50 bg-bg border border-border rounded-lg px-3 py-1.5 text-sm mono outline-none focus:border-primary"
+          className="w-44 bg-bg border border-border rounded-lg px-3 py-1.5 text-sm mono outline-none focus:border-primary"
         />
         <select value={chain} onChange={(e) => setChain(e.target.value)}
           className="bg-bg border border-border rounded-lg px-2 py-1.5 text-sm outline-none">
@@ -276,7 +279,7 @@ export default function Home() {
               <span className="font-medium mono">{sel.label}</span>
               <button onClick={() => setSel(null)} className="text-muted-fg hover:text-fg">✕</button>
             </div>
-            <div className="text-xs text-muted-fg mt-0.5">{sel.kind}{sel.chain ? ` · ${sel.chain}` : ""}{sel.version ? ` · ${sel.version}` : ""}</div>
+            <div className="text-xs text-muted-fg mt-0.5">{sel.kind}{sel.chain ? ` · ${chainLabel(sel.chain)}` : ""}{sel.version ? ` · ${sel.version}` : ""}</div>
             <div className="flex items-baseline gap-2 mt-2">
               <span className="mono text-primary text-lg">{usd(sel.usd)}</span>
               {sel.pct != null && sel.pct > 0 && <span className="mono text-xs text-muted-fg">{sel.pct}% of TVL</span>}

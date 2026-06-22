@@ -67,8 +67,8 @@ export function buildFootprint(args: {
     }
   }
 
-  // 2. Vaults curatés Morpho
-  const VG = group("Vaults curatés");
+  // 2. Curated Morpho vaults
+  const VG = group("Curated Vaults");
 
   for (const r of args.vaultReports) {
     const id = `entity::${r.vault.chain}::${r.vault.address.toLowerCase()}`;
