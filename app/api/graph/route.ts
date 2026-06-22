@@ -3,6 +3,7 @@ import { getVault } from "@/lib/morpho";
 import { decompose } from "@/lib/decompose";
 import { buildGraph } from "@/lib/graph";
 import { cached } from "@/lib/cache";
+import { annotatePeg } from "@/lib/stablecoins";
 import type { ScanReport } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -33,7 +34,9 @@ export async function GET(req: NextRequest) {
         }),
       );
       if (!reports.length) throw new Error(skipped[0]?.reason ?? "aucun vault décomposable");
-      return { graph: buildGraph(reports), skipped, reports };
+      const graph = buildGraph(reports);
+      await annotatePeg(graph.nodes);
+      return { graph, skipped, reports };
     }, force);
     return NextResponse.json({ ...data, cachedAt, fromCache: fresh });
   } catch (e) {

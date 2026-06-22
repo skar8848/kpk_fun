@@ -30,6 +30,8 @@ export type GraphNode = {
   marketId?: string;
   note?: string; // statut (ex: "mandate ended 2025")
   pct?: number; // % du TVL total (root)
+  pegPrice?: number; // prix de peg DefiLlama (nœud asset stablecoin)
+  pegDeviationPct?: number;
   type?: string; // type de position Zerion (deposit/staked/loan…)
   // métriques marché Morpho
   lltvPct?: number;

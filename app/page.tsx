@@ -71,6 +71,9 @@ function KNode({ data, selected }: NodeProps) {
       {d.protocol && d.protocol !== "-" && d.protocol !== "?" && (
         <div className="text-[9px] opacity-50">{d.protocol}</div>
       )}
+      {d.pegDeviationPct != null && Math.abs(d.pegDeviationPct) > 2 && (
+        <div className="text-[9px]" style={{ color: Math.abs(d.pegDeviationPct) > 10 ? "#eb365a" : "#f5a623" }}>⚠ depeg ${d.pegPrice?.toFixed(3)}</div>
+      )}
       {d.note && <div className="text-[9px]" style={{ color: "#f5a623" }}>⚠ {d.note}</div>}
       {d.pending && !d.note && <div className="text-[9px] opacity-60">positions pending…</div>}
       <Handle type="source" position={Position.Right} style={{ opacity: 0 }} />
@@ -206,10 +209,11 @@ export default function Home() {
         </div>
         <input
           value={addrFocused || !isAddr ? addr : shortAddr(addr)}
+          size={addrFocused || !isAddr ? Math.max(addr.length, 14) : 12}
           onChange={(e) => setAddr(e.target.value)}
           onFocus={() => setAddrFocused(true)} onBlur={() => setAddrFocused(false)}
-          placeholder="0x… Morpho vault"
-          className="w-44 bg-bg border border-border rounded-lg px-3 py-1.5 text-sm mono outline-none focus:border-primary"
+          placeholder="0x… vault"
+          className="bg-bg border border-border rounded-lg px-3 py-1.5 text-sm mono outline-none focus:border-primary"
         />
         <select value={chain} onChange={(e) => setChain(e.target.value)}
           className="bg-bg border border-border rounded-lg px-2 py-1.5 text-sm outline-none">
@@ -298,6 +302,7 @@ export default function Home() {
               {sel.liquidityUsd != null && <Row k="liquidity" v={usd(sel.liquidityUsd)} accent={sel.liquidityUsd < 1000 ? "#eb365a" : undefined} />}
               {sel.protocol && sel.protocol !== "-" && sel.protocol !== "?" && <Row k="protocol" v={sel.protocol} />}
               {sel.mechanism && <Row k="mechanism" v={sel.mechanism} />}
+              {sel.pegPrice != null && <Row k="peg (DefiLlama)" v={`$${sel.pegPrice.toFixed(4)} · ${sel.pegDeviationPct! > 0 ? "+" : ""}${sel.pegDeviationPct}%`} accent={Math.abs(sel.pegDeviationPct ?? 0) > 10 ? "#eb365a" : Math.abs(sel.pegDeviationPct ?? 0) > 2 ? "#f5a623" : "#02c77b"} />}
               {sel.risk && <Row k="risk" v={sel.risk} accent="#f5a623" />}
               {sel.unmapped && <Row k="status" v="❓ unmapped collateral" accent="#eb365a" />}
               {sel.flags && sel.flags.length > 0 && <Row k="oracle flags" v={sel.flags.join(", ")} accent={sevColor[sel.severity ?? "OK"]} />}

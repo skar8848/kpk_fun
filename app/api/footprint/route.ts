@@ -5,6 +5,7 @@ import { buildFootprint } from "@/lib/footprint";
 import { KPK_SAFES, KPK_VAULTS } from "@/lib/kpkEntities";
 import { getSafePositions, mapLimited, type ZPosition } from "@/lib/zerion";
 import { cached } from "@/lib/cache";
+import { annotatePeg } from "@/lib/stablecoins";
 import type { ScanReport } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -42,6 +43,7 @@ async function computeFootprint() {
   }
 
   const graph = buildFootprint({ vaultReports, v2vaults: [], safes: KPK_SAFES, safePositions });
+  await annotatePeg(graph.nodes);
   return { graph, skipped, zerion, counts: { safes: KPK_SAFES.length, vaults: vaultReports.length } };
 }
 
