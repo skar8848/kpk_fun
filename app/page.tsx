@@ -62,6 +62,7 @@ function KNode({ data, selected }: NodeProps) {
       {d.usd > 0 && (
         <div className="mono opacity-60 text-[10px]">
           {usd(d.usd)}{d.pct != null && d.pct >= 0.1 ? ` · ${d.pct}%` : ""}
+          {d.vaultApyPct != null ? ` · ${d.vaultApyPct}% APY` : ""}
         </div>
       )}
       {d.protocol && d.protocol !== "-" && d.protocol !== "?" && (
@@ -129,6 +130,8 @@ export default function Home() {
 
   const [hideDeprecated, setHideDeprecated] = useState(false);
   const [view, setView] = useState<"canvas" | "dashboard">("canvas");
+  const [addrFocused, setAddrFocused] = useState(false);
+  const isAddr = /^0x[a-fA-F0-9]{40}$/.test(addr);
 
   useEffect(() => { loadFootprint(); }, [loadFootprint]); // KPK footprint by default
 
@@ -199,7 +202,10 @@ export default function Home() {
           <button onClick={() => setView("dashboard")} className={`px-3 py-1.5 ${view === "dashboard" ? "bg-primary text-bg" : "text-muted-fg"}`}>Dashboard</button>
         </div>
         <input
-          value={addr} onChange={(e) => setAddr(e.target.value)} placeholder="0x… Morpho vault"
+          value={addrFocused || !isAddr ? addr : shortAddr(addr)}
+          onChange={(e) => setAddr(e.target.value)}
+          onFocus={() => setAddrFocused(true)} onBlur={() => setAddrFocused(false)}
+          placeholder="0x… Morpho vault"
           className="flex-1 min-w-50 bg-bg border border-border rounded-lg px-3 py-1.5 text-sm mono outline-none focus:border-primary"
         />
         <select value={chain} onChange={(e) => setChain(e.target.value)}
@@ -281,6 +287,7 @@ export default function Home() {
               {sel.chains && sel.chains.length > 0 && <Row k="chains" v={sel.chains.join(", ")} />}
               {sel.type && <Row k="position type" v={sel.type} />}
               {sel.pending && <Row k="positions" v="not loaded" accent="#586878" />}
+              {sel.vaultApyPct != null && <Row k="net APY" v={`${sel.vaultApyPct}%`} accent="#02c77b" />}
               {sel.lltvPct != null && <Row k="LLTV" v={`${sel.lltvPct}%`} />}
               {sel.utilPct != null && <Row k="utilization" v={`${sel.utilPct}%`} accent={sel.utilPct > 95 ? "#eb365a" : undefined} />}
               {sel.supplyApyPct != null && <Row k="supply APY" v={`${sel.supplyApyPct}%`} accent="#02c77b" />}

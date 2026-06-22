@@ -72,7 +72,7 @@ export function buildFootprint(args: {
 
   for (const r of args.vaultReports) {
     const id = `entity::${r.vault.chain}::${r.vault.address.toLowerCase()}`;
-    addNode({ id, kind: "entity", label: r.vault.name ?? "vault", usd: r.tvlUsd, level: 2, chain: r.vault.chain, version: "v1", address: r.vault.address });
+    addNode({ id, kind: "entity", label: r.vault.name ?? "vault", usd: r.tvlUsd, level: 2, chain: r.vault.chain, version: r.vault.version, address: r.vault.address, vaultApyPct: r.vault.apyPct });
     addEdge(VG, id);
     for (const p of r.positions) {
       if (p.usd <= 0) continue;

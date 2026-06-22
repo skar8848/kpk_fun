@@ -61,7 +61,7 @@ type VaultResp = {
   vaultByAddress: {
     name: string | null;
     asset: { symbol: string; address: string; decimals: number } | null;
-    state: { totalAssetsUsd: string | null; allocation: { supplyAssetsUsd: string | null; market: Market }[] | null } | null;
+    state: { totalAssetsUsd: string | null; netApy: number | null; allocation: { supplyAssetsUsd: string | null; market: Market }[] | null } | null;
   } | null;
 };
 
@@ -71,13 +71,13 @@ export async function getVaultV1(address: string, chain: string): Promise<VaultN
   const q = `query($a:String!,$c:Int!){
     vaultByAddress(address:$a, chainId:$c){
       name asset{symbol address decimals}
-      state{ totalAssetsUsd allocation{ supplyAssetsUsd market{ ${MARKET_FRAG} } } }
+      state{ totalAssetsUsd netApy allocation{ supplyAssetsUsd market{ ${MARKET_FRAG} } } }
     }
   }`;
   const data = await gql<VaultResp>(q, { a: address, c: cid });
   const v = data.vaultByAddress;
   if (!v) throw new Error(`vault v1 ${address} introuvable sur ${chain}`);
-  const st = v.state ?? { totalAssetsUsd: "0", allocation: [] };
+  const st = v.state ?? { totalAssetsUsd: "0", netApy: null, allocation: [] };
   const allocations = (st.allocation ?? [])
     .map((a) => ({ supplyUsd: Number(a.supplyAssetsUsd ?? 0), market: a.market }))
     .filter((a) => a.supplyUsd > 0 && a.market)
@@ -85,6 +85,7 @@ export async function getVaultV1(address: string, chain: string): Promise<VaultN
   return {
     address, chain, name: v.name, version: "v1", asset: v.asset,
     tvlUsd: Number(st.totalAssetsUsd ?? 0),
+    apyPct: st.netApy != null ? Math.round(st.netApy * 1e4) / 100 : undefined,
     allocations,
   };
 }
@@ -102,6 +103,7 @@ type V2Resp = {
     name: string | null;
     asset: { symbol: string; address: string; decimals: number } | null;
     totalAssetsUsd: string | null;
+    netApy: number | null;
     adapters: {
       items: {
         __typename: string;
@@ -120,7 +122,7 @@ export async function getVaultV2(address: string, chain: string, depth = 0): Pro
   if (!cid) throw new Error(`chaîne inconnue: ${chain}`);
   const q = `query($a:String!,$c:Int!){
     vaultV2ByAddress(address:$a, chainId:$c){
-      name asset{symbol address decimals} totalAssetsUsd
+      name asset{symbol address decimals} totalAssetsUsd netApy
       adapters{ items {
         __typename
         ... on MorphoMarketV1Adapter { positions { items { state { supplyAssetsUsd } market { marketId } } } }
@@ -162,7 +164,9 @@ export async function getVaultV2(address: string, chain: string, depth = 0): Pro
   const merged = [...byMkt.values()].sort((x, y) => y.supplyUsd - x.supplyUsd);
   return {
     address, chain, name: v.name, version: "v2", asset: v.asset,
-    tvlUsd: Number(v.totalAssetsUsd ?? 0), allocations: merged,
+    tvlUsd: Number(v.totalAssetsUsd ?? 0),
+    apyPct: v.netApy != null ? Math.round(v.netApy * 1e4) / 100 : undefined,
+    allocations: merged,
   };
 }
 

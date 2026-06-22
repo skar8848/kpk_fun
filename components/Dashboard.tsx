@@ -68,7 +68,8 @@ export default function Dashboard({ graph }: { graph: Graph }) {
     const tvl = N.find((n) => n.kind === "root")?.usd ?? 0;
     const entities = N.filter((n) => n.kind === "entity").map((n) => ({
       dao: n.dao ?? "Curated Vaults", name: n.label, usd: n.usd, pct: n.pct ?? 0,
-      chains: (n.chains ?? (n.chain ? [n.chain] : [])).join(", "), status: n.note ?? (n.pending ? "no positions" : "active"), n,
+      chains: (n.chains ?? (n.chain ? [n.chain] : [])).join(", "), status: n.note ?? (n.pending ? "no positions" : "active"),
+      apy: n.vaultApyPct ?? null, n,
     }));
     const morpho = N.filter((n) => n.kind === "market" && n.lltvPct != null).map((n) => ({
       market: n.label, tvl: n.usd, pct: n.pct ?? 0, lltv: n.lltvPct, util: n.utilPct ?? 0,
@@ -113,6 +114,7 @@ export default function Dashboard({ graph }: { graph: Graph }) {
           { key: "dao", label: "DAO" }, { key: "name", label: "Entity" },
           { key: "usd", label: "TVL", num: true, render: (r) => usd(Number(r.usd)) },
           { key: "pct", label: "%", num: true, render: (r) => `${Number(r.pct).toFixed(1)}%` },
+          { key: "apy", label: "Net APY", num: true, render: (r) => r.apy != null ? <span style={{ color: "#02c77b" }}>{Number(r.apy).toFixed(2)}%</span> : "—" },
           { key: "chains", label: "Chains" },
           { key: "status", label: "Status", render: (r) => <span style={{ color: r.status !== "active" ? "#f5a623" : "var(--muted-fg)" }}>{String(r.status)}</span> },
         ]} />
@@ -132,12 +134,16 @@ export default function Dashboard({ graph }: { graph: Graph }) {
       </Section>
 
       <Section title="Treasury positions">
+        {positions.length === 0 ? (
+          <div className="text-xs text-muted-fg p-2">No treasury positions in this view — load <span className="text-fg">🌐 KPK Footprint</span> (Safe positions are fetched via Zerion).</div>
+        ) : (
         <SortableTable initial="tvl" rows={positions} cols={[
           { key: "asset", label: "Position" }, { key: "protocol", label: "Protocol" }, { key: "type", label: "Type" },
           { key: "tvl", label: "Value", num: true, render: (r) => usd(Number(r.tvl)) },
           { key: "chain", label: "Chain" },
           { key: "addr", label: "Token", render: (r) => { const n = r.n as GraphNode; return n.address ? <a className="text-primary hover:underline" href={explorerAddr(n.chain, n.address)} target="_blank" rel="noreferrer">{shortAddr(n.address)} ↗</a> : "—"; } },
         ]} />
+        )}
       </Section>
 
       <div className="grid md:grid-cols-2 gap-6">

@@ -107,7 +107,7 @@ export function decompose(vault: VaultNorm): ScanReport {
   }
 
   return {
-    vault: { address: vault.address, chain: vault.chain, name: vault.name, version: vault.version },
+    vault: { address: vault.address, chain: vault.chain, name: vault.name, version: vault.version, apyPct: vault.apyPct },
     tvlUsd: tvl,
     positions,
     transitive_exposure: asPct(transitive, tvl),

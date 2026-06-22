@@ -20,6 +20,7 @@ export type GraphNode = {
   flags?: string[];
   dao?: string;
   version?: string;
+  vaultApyPct?: number; // net APY (nœud entity vault)
   pending?: boolean; // positions à charger (ex: Safe en attente de Zerion)
   address?: string; // contrat (vault/safe/token)
   oracleAddr?: string;
@@ -72,7 +73,7 @@ export function buildGraph(reports: ScanReport[], rootLabel = "KPK"): Graph {
     addNode({
       id: entId, kind: "entity", label: r.vault.name ?? "vault",
       usd: r.tvlUsd, level: 1, chain: r.vault.chain, address: r.vault.address,
-      version: r.vault.version,
+      version: r.vault.version, vaultApyPct: r.vault.apyPct,
     });
     addEdge(ROOT, entId);
     nodes.get(ROOT)!.usd += r.tvlUsd;

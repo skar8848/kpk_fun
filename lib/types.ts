@@ -53,6 +53,7 @@ export type VaultNorm = {
   version: "v1" | "v2";
   asset: Asset | null;
   tvlUsd: number;
+  apyPct?: number; // net APY du vault
   allocations: { supplyUsd: number; market: Market }[];
 };
 
@@ -96,7 +97,7 @@ export type Loop = { market: string; lltv_pct: number; max_leverage_x: number | 
 export type ContagionBucket = { usd: number; markets: number; examples: string[] };
 
 export type ScanReport = {
-  vault: { address: string; chain: string; name: string | null; version: string };
+  vault: { address: string; chain: string; name: string | null; version: string; apyPct?: number };
   tvlUsd: number;
   positions: Position[];
   transitive_exposure: ExposureRow[];
