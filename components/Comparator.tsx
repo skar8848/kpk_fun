@@ -70,7 +70,7 @@ export default function Comparator() {
     fetchUrl(`/api/compare?kpk=1&chain=${c}`);
   }, [fetchUrl]);
 
-  useEffect(() => { loadKpk("all"); }, [loadKpk]); // défaut : le book KPK multichain
+  useEffect(() => { loadAll("all", 0); }, [loadAll]); // défaut : tous les vaults (multichain)
 
   const cols: Col[] = [
     { key: "sel", label: "", render: (r) => <input type="checkbox" checked={selected.includes(rk(r))} onChange={() => toggleSel(rk(r))} title="select for 1v1 compare" className="accent-[#55c3e9]" /> },
@@ -117,7 +117,7 @@ export default function Comparator() {
           {CHAINS.map((c) => <option key={c} value={c}>{c}</option>)}
         </select>
         <button onClick={() => loadSearch(asset, chain)} disabled={loading} className="bg-primary text-bg font-medium rounded-lg px-4 py-1.5 text-sm disabled:opacity-50">{loading ? "…" : "Compare"}</button>
-        <button onClick={() => loadKpk(chain)} disabled={loading} className="rounded-lg px-3 py-1.5 text-sm border border-primary text-primary">★ KPK book</button>
+        <button onClick={() => loadKpk(chain)} disabled={loading} className="rounded-lg px-3 py-1.5 text-sm border border-primary text-primary">★ KPK only</button>
         <button onClick={() => loadAll(chain, 0)} disabled={loading} className={`rounded-lg px-3 py-1.5 text-sm border ${mode === "all" ? "border-primary text-primary" : "border-border text-muted-fg"}`}>All vaults</button>
         {PRESETS.map((p) => <button key={p} onClick={() => loadAsset(p, chain)} className="text-xs text-muted-fg hover:text-primary border border-border rounded-full px-3 py-1">{p}</button>)}
         <div className="flex-1" />
