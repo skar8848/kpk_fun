@@ -13,7 +13,12 @@ function usd(n?: number) {
   return `$${n.toFixed(0)}`;
 }
 const scoreColor = (s: number) => (s >= 75 ? "#02c77b" : s >= 50 ? "#f5a623" : "#eb365a");
-const PRESETS = ["USDC", "WETH", "USDT", "EURC", "EURCV"];
+const PRESETS: { label: string; assets: string[] }[] = [
+  { label: "USD", assets: ["USDC", "USDT"] },
+  { label: "ETH", assets: ["WETH"] },
+  { label: "BTC", assets: ["WBTC", "cbBTC"] },
+  { label: "EUR", assets: ["EURC", "EURCV"] },
+];
 const CHAINS = ["all", "ethereum", "base", "arbitrum", "optimism"];
 
 type Col = { key: string; label: string; num?: boolean; render?: (r: CompareRow) => React.ReactNode };
@@ -25,6 +30,7 @@ export default function Comparator() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [bench, setBench] = useState<"ALL" | "USD" | "ETH" | "EUR">("ALL");
+  const [proto, setProto] = useState<"ALL" | "Morpho" | "Euler" | "Gearbox">("ALL");
   const [sortKey, setSortKey] = useState<string>("riskAdjApyPct");
   const [dir, setDir] = useState<1 | -1>(-1);
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -60,9 +66,9 @@ export default function Comparator() {
     fetchUrl(`/api/compare?${param}&chain=${c}`);
   }, [fetchUrl]);
 
-  const loadAsset = useCallback((a: string, c: string) => {
+  const loadAssets = useCallback((assets: string[], c: string) => {
     setMode("search");
-    fetchUrl(`/api/compare?asset=${a}&chain=${c}`);
+    fetchUrl(`/api/compare?assets=${assets.join(",")}&chain=${c}`);
   }, [fetchUrl]);
 
   const loadKpk = useCallback((c: string) => {
@@ -93,7 +99,7 @@ export default function Comparator() {
   ];
 
   const view = useMemo(() => {
-    const filtered = bench === "ALL" ? rows : rows.filter((r) => r.benchmark === bench);
+    const filtered = rows.filter((r) => (bench === "ALL" || r.benchmark === bench) && (proto === "ALL" || r.protocol === proto));
     const c = cols.find((x) => x.key === sortKey);
     const val = (r: CompareRow) => (sortKey === "score" ? r.riskScore : (r as unknown as Record<string, unknown>)[sortKey]);
     return [...filtered].sort((a, b) => {
@@ -101,7 +107,7 @@ export default function Comparator() {
       if (c?.num || sortKey === "score") return (Number(vb) - Number(va)) * -dir;
       return String(va ?? "").localeCompare(String(vb ?? "")) * -dir;
     });
-  }, [rows, bench, sortKey, dir]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [rows, bench, proto, sortKey, dir]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const click = (k: string) => { if (k === sortKey) setDir((d) => (d === 1 ? -1 : 1)); else { setSortKey(k); setDir(-1); } };
   const selRows = selected.map((k) => rows.find((r) => rk(r) === k)).filter((r): r is CompareRow => !!r);
@@ -119,8 +125,13 @@ export default function Comparator() {
         <button onClick={() => loadSearch(asset, chain)} disabled={loading} className="bg-primary text-bg font-medium rounded-lg px-4 py-1.5 text-sm disabled:opacity-50">{loading ? "…" : "Compare"}</button>
         <button onClick={() => loadKpk(chain)} disabled={loading} className="rounded-lg px-3 py-1.5 text-sm border border-primary text-primary">★ KPK only</button>
         <button onClick={() => loadAll(chain, 0)} disabled={loading} className={`rounded-lg px-3 py-1.5 text-sm border ${mode === "all" ? "border-primary text-primary" : "border-border text-muted-fg"}`}>All vaults</button>
-        {PRESETS.map((p) => <button key={p} onClick={() => loadAsset(p, chain)} className="text-xs text-muted-fg hover:text-primary border border-border rounded-full px-3 py-1">{p}</button>)}
+        {PRESETS.map((p) => <button key={p.label} onClick={() => loadAssets(p.assets, chain)} className="text-xs text-muted-fg hover:text-primary border border-border rounded-full px-3 py-1">{p.label}</button>)}
         <div className="flex-1" />
+        <div className="flex rounded-lg border border-border overflow-hidden text-xs">
+          {(["ALL", "Morpho", "Euler", "Gearbox"] as const).map((p) => (
+            <button key={p} onClick={() => setProto(p)} className={`px-2.5 py-1.5 ${proto === p ? "bg-primary text-bg" : "text-muted-fg"}`}>{p}</button>
+          ))}
+        </div>
         <div className="flex rounded-lg border border-border overflow-hidden text-xs">
           {(["ALL", "USD", "ETH", "EUR"] as const).map((b) => (
             <button key={b} onClick={() => setBench(b)} className={`px-2.5 py-1.5 ${bench === b ? "bg-primary text-bg" : "text-muted-fg"}`}>{b}</button>
