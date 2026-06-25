@@ -11,7 +11,7 @@ import type { ScanReport } from "@/lib/types";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const TTL = 5 * 60 * 1000;
+const TTL = 30 * 60 * 1000;
 
 async function computeFootprint() {
   const vaultReports: ScanReport[] = [];
@@ -36,7 +36,7 @@ async function computeFootprint() {
   if (key) {
     zerion = true;
     safePositions = {};
-    const results = await mapLimited(KPK_SAFES, 4, (s) =>
+    const results = await mapLimited(KPK_SAFES, 10, (s) =>
       getSafePositions(s.avatar, s.chains, key).then((pos) => ({ avatar: s.avatar.toLowerCase(), pos })),
     );
     for (const r of results) safePositions[r.avatar] = r.pos;

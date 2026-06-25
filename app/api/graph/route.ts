@@ -9,7 +9,7 @@ import type { ScanReport } from "@/lib/types";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const TTL = 5 * 60 * 1000;
+const TTL = 30 * 60 * 1000;
 
 // ?address=0x..&chain=ethereum  (un vault)  ·  ?addresses=0xaaa,0xbbb (agrégé)  ·  ?fresh=1 (bypass cache)
 export async function GET(req: NextRequest) {

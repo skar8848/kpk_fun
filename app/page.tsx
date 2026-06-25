@@ -209,11 +209,11 @@ export default function Home() {
         </div>
         <input
           value={addrFocused || !isAddr ? addr : shortAddr(addr)}
-          size={addrFocused || !isAddr ? Math.max(addr.length, 14) : 12}
+          size={addrFocused || !isAddr ? Math.max(addr.length, 14) : 11}
           onChange={(e) => setAddr(e.target.value)}
           onFocus={() => setAddrFocused(true)} onBlur={() => setAddrFocused(false)}
           placeholder="0x… vault"
-          className="bg-bg border border-border rounded-lg px-3 py-1.5 text-sm mono outline-none focus:border-primary"
+          className="bg-bg border border-border rounded-lg px-2 py-1.5 text-sm mono text-center outline-none focus:border-primary"
         />
         <select value={chain} onChange={(e) => setChain(e.target.value)}
           className="bg-bg border border-border rounded-lg px-2 py-1.5 text-sm outline-none">
@@ -231,8 +231,6 @@ export default function Home() {
           style={{ borderColor: hideDeprecated ? "#f5a623" : "var(--border)", color: hideDeprecated ? "#f5a623" : "var(--muted-fg)" }}>
           {hideDeprecated ? "Deprecated: hidden" : "Deprecated: shown"}
         </button>
-        <button onClick={() => refresh?.()} disabled={loading || !refresh} title="recompute (bypass cache)"
-          className="border border-border text-muted-fg hover:text-fg rounded-lg px-3 py-1.5 text-sm disabled:opacity-40">↻</button>
         {meta.fromCache && <span className="text-[10px] text-muted-fg">⚡ cached</span>}
         {PRESETS.map((p) => (
           <button key={p.addr} onClick={() => { setAddr(p.addr); load(p.addr, "ethereum"); }}
@@ -260,7 +258,7 @@ export default function Home() {
           proOptions={{ hideAttribution: true }} colorMode="dark"
         >
           <Background color="#1a2430" gap={20} />
-          <Controls showInteractive={false} />
+          <Controls showInteractive={false} position="bottom-left" />
           <MiniMap pannable zoomable nodeColor={(n) => {
             const d = n.data as unknown as GraphNode;
             return d.kind === "root" || d.kind === "group" ? "#55c3e9" : d.kind === "entity" ? "#586878" : sevColor[d.severity ?? "OK"];
@@ -276,6 +274,12 @@ export default function Home() {
           <div className="text-muted-fg pt-1">→ rightward = deeper in the risk chain</div>
           <div className="text-muted pt-0.5">click a node to highlight its full chain</div>
         </div>
+
+        {/* recompute, just above the zoom +/- controls */}
+        <button onClick={() => refresh?.()} disabled={loading || !refresh} title="recompute (bypass cache)"
+          className="absolute left-[15px] bottom-[108px] z-10 w-[26px] h-[26px] flex items-center justify-center text-sm bg-card border border-border rounded text-muted-fg hover:text-primary disabled:opacity-40">
+          ↻
+        </button>
 
         {sel && (
           <div className="absolute top-3 right-3 w-72 card p-4 z-10 max-h-[88vh] overflow-y-auto">
