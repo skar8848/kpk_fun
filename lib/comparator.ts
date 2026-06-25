@@ -5,7 +5,7 @@
 // Risk-Adjusted APY = netApy × (riskScore / 100).
 // Chaque sous-score expose {raw, score, weight} → tooltip auditable (pas de boîte noire).
 
-import { getVault, discoverVaults, discoverMarkets, fetchCurators, listAllVaults } from "./morpho";
+import { getVault, discoverVaults, discoverMarkets, fetchCurators, listAllVaults, listVaultsLight } from "./morpho";
 import { analyzeOracle } from "./oracleRisk";
 import { oracleVendor } from "./explorer";
 import { lookup } from "./knowledge";
@@ -190,7 +190,7 @@ export async function buildVaultRow(address: string, chain: string, pegMap: Reco
 
 // Construit les lignes : par asset (auto-découverte) et/ou listes explicites.
 export async function compare(opts: {
-  chain: string; asset?: string; assets?: string[];
+  chain: string; asset?: string; assets?: string[]; search?: string;
   vaults?: string[]; markets?: Market[];
 }): Promise<CompareRow[]> {
   const [pegMap, curatorMap] = await Promise.all([getPegMap(), getCuratorMap()]);
@@ -198,6 +198,17 @@ export async function compare(opts: {
 
   let vaultAddrs = opts.vaults ?? [];
   let markets = opts.markets ?? [];
+  // recherche par nom de vault OU nom de curator
+  if (opts.search) {
+    const q = opts.search.toLowerCase();
+    const light = await listVaultsLight(opts.chain);
+    const matches = light.filter((v) => {
+      if ((v.name ?? "").toLowerCase().includes(q)) return true;
+      const cn = [v.curator, v.owner].map((a) => a && curatorMap[a.toLowerCase()]).find(Boolean);
+      return !!cn && cn.toLowerCase().includes(q);
+    }).slice(0, 25);
+    vaultAddrs = [...new Set([...vaultAddrs, ...matches.map((m) => m.address)])];
+  }
   const assetList = [...(opts.assets ?? []), ...(opts.asset ? [opts.asset] : [])];
   if (assetList.length) {
     const discovered = await Promise.all(

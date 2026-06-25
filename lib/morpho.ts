@@ -186,11 +186,22 @@ export async function getVault(address: string, chain: string): Promise<VaultNor
 export async function listAllVaults(chain: string, skip = 0, limit = 15): Promise<{ addresses: string[]; total: number }> {
   const cid = CHAIN_IDS[chain];
   if (!cid) return { addresses: [], total: 0 };
-  const q = `query($c:[Int!]!,$s:Int!,$n:Int!){ vaults(first:$n, skip:$s, where:{chainId_in:$c, totalAssetsUsd_gte:10000}, orderBy:TotalAssetsUsd, orderDirection:Desc){ items{ address } pageInfo{ countTotal } } }`;
+  const q = `query($c:[Int!]!,$s:Int!,$n:Int!){ vaults(first:$n, skip:$s, where:{chainId_in:$c, listed:true, totalAssetsUsd_gte:10000}, orderBy:TotalAssetsUsd, orderDirection:Desc){ items{ address } pageInfo{ countTotal } } }`;
   try {
     const d = await gql<{ vaults: { items: { address: string }[]; pageInfo: { countTotal: number } } }>(q, { c: [cid], s: skip, n: limit });
     return { addresses: d.vaults.items.map((v) => v.address), total: d.vaults.pageInfo?.countTotal ?? 0 };
   } catch { return { addresses: [], total: 0 }; }
+}
+
+// Liste légère de tous les vaults listed (pour recherche par nom/curator).
+export async function listVaultsLight(chain: string): Promise<{ address: string; name: string | null; curator: string | null; owner: string | null; tvlUsd: number }[]> {
+  const cid = CHAIN_IDS[chain];
+  if (!cid) return [];
+  const q = `query($c:[Int!]!){ vaults(first:300, where:{chainId_in:$c, listed:true, totalAssetsUsd_gte:10000}, orderBy:TotalAssetsUsd, orderDirection:Desc){ items{ address name state{ curator owner totalAssetsUsd } } } }`;
+  try {
+    const d = await gql<{ vaults: { items: { address: string; name: string | null; state: { curator: string | null; owner: string | null; totalAssetsUsd: string | null } | null }[] } }>(q, { c: [cid] });
+    return d.vaults.items.map((v) => ({ address: v.address, name: v.name, curator: v.state?.curator ?? null, owner: v.state?.owner ?? null, tvlUsd: Number(v.state?.totalAssetsUsd ?? 0) }));
+  } catch { return []; }
 }
 
 // Map adresse(lowercase) -> nom de curator (toutes chaînes).
@@ -208,7 +219,7 @@ export async function fetchCurators(): Promise<Record<string, string>> {
 export async function discoverVaults(chain: string, symbol: string, limit = 12): Promise<string[]> {
   const cid = CHAIN_IDS[chain];
   if (!cid) return [];
-  const q = `query($s:[String!]!,$c:[Int!]!,$n:Int!){ vaults(first:$n, where:{assetSymbol_in:$s, chainId_in:$c}, orderBy:TotalAssetsUsd, orderDirection:Desc){ items { address } } }`;
+  const q = `query($s:[String!]!,$c:[Int!]!,$n:Int!){ vaults(first:$n, where:{assetSymbol_in:$s, chainId_in:$c, listed:true}, orderBy:TotalAssetsUsd, orderDirection:Desc){ items { address } } }`;
   try {
     const d = await gql<{ vaults: { items: { address: string }[] } }>(q, { s: [symbol], c: [cid], n: limit });
     return d.vaults.items.map((v) => v.address);

@@ -56,8 +56,13 @@ export default function Comparator() {
   const loadSearch = useCallback((a: string, c: string) => {
     setMode("search");
     const q = a.trim();
-    const param = /^0x[a-fA-F0-9]{40}$/.test(q) ? `vaults=${q}` : `asset=${q}`;
+    const param = /^0x[a-fA-F0-9]{40}$/.test(q) ? `vaults=${q}` : `search=${encodeURIComponent(q)}`;
     fetchUrl(`/api/compare?${param}&chain=${c}`);
+  }, [fetchUrl]);
+
+  const loadAsset = useCallback((a: string, c: string) => {
+    setMode("search");
+    fetchUrl(`/api/compare?asset=${a}&chain=${c}`);
   }, [fetchUrl]);
 
   useEffect(() => { loadAll("ethereum", 0); }, [loadAll]);
@@ -99,15 +104,15 @@ export default function Comparator() {
     <div className="h-full overflow-y-auto px-5 py-5 max-w-7xl mx-auto">
       <div className="flex items-center gap-3 flex-wrap mb-4">
         <h1 className="text-xl font-semibold">Vault & Market <span className="text-primary">Comparator</span></h1>
-        <input value={asset} onChange={(e) => setAsset(e.target.value)} placeholder="asset (USDC) or 0x vault…"
+        <input value={asset} onChange={(e) => setAsset(e.target.value)} placeholder="vault name, curator, or 0x…"
           onKeyDown={(e) => e.key === "Enter" && loadSearch(asset, chain)}
-          className="w-52 bg-bg border border-border rounded-lg px-3 py-1.5 text-sm outline-none focus:border-primary" />
+          className="w-56 bg-bg border border-border rounded-lg px-3 py-1.5 text-sm outline-none focus:border-primary" />
         <select value={chain} onChange={(e) => setChain(e.target.value)} className="bg-bg border border-border rounded-lg px-2 py-1.5 text-sm outline-none">
           {CHAINS.map((c) => <option key={c} value={c}>{c}</option>)}
         </select>
         <button onClick={() => loadSearch(asset, chain)} disabled={loading} className="bg-primary text-bg font-medium rounded-lg px-4 py-1.5 text-sm disabled:opacity-50">{loading ? "…" : "Compare"}</button>
         <button onClick={() => loadAll(chain, 0)} disabled={loading} className={`rounded-lg px-3 py-1.5 text-sm border ${mode === "all" ? "border-primary text-primary" : "border-border text-muted-fg"}`}>All vaults</button>
-        {PRESETS.map((p) => <button key={p} onClick={() => { setAsset(p); loadSearch(p, chain); }} className="text-xs text-muted-fg hover:text-primary border border-border rounded-full px-3 py-1">{p}</button>)}
+        {PRESETS.map((p) => <button key={p} onClick={() => loadAsset(p, chain)} className="text-xs text-muted-fg hover:text-primary border border-border rounded-full px-3 py-1">{p}</button>)}
         <div className="flex-1" />
         <div className="flex rounded-lg border border-border overflow-hidden text-xs">
           {(["ALL", "USD", "ETH", "EUR"] as const).map((b) => (
@@ -237,10 +242,18 @@ function VsRow({ label, children }: { label: string; children: React.ReactNode }
 }
 
 function AllocTable({ allocations }: { allocations: NonNullable<CompareRow["allocations"]> }) {
+  const [numbers, setNumbers] = useState(false);
   const chart = allocations.map((a) => ({ name: a.label, weight: a.weightPct, util: a.utilPct ?? 0 }));
   return (
     <>
-    <ResponsiveContainer width="100%" height={Math.max(70, chart.length * 24)}>
+    <div className="flex justify-end mb-2">
+      <div className="flex rounded border border-border overflow-hidden text-[10px]">
+        <button onClick={() => setNumbers(false)} className={`px-2 py-0.5 ${!numbers ? "bg-primary text-bg" : "text-muted-fg"}`}>📊 Chart</button>
+        <button onClick={() => setNumbers(true)} className={`px-2 py-0.5 ${numbers ? "bg-primary text-bg" : "text-muted-fg"}`}># Numbers</button>
+      </div>
+    </div>
+    {!numbers ? (<>
+    <ResponsiveContainer width="100%" height={Math.max(70, chart.length * 26)}>
       <BarChart data={chart} layout="vertical" margin={{ left: 0, right: 48, top: 0, bottom: 0 }}>
         <XAxis type="number" hide domain={[0, "dataMax"]} />
         <YAxis type="category" dataKey="name" width={150} tick={{ fill: "#8898a8", fontSize: 9 }} axisLine={false} tickLine={false} />
@@ -251,7 +264,8 @@ function AllocTable({ allocations }: { allocations: NonNullable<CompareRow["allo
         </Bar>
       </BarChart>
     </ResponsiveContainer>
-    <div className="text-[9px] text-muted mt-1 mb-2">bars = allocation weight · <span style={{ color: "#eb365a" }}>red</span> = utilization &gt; 95% (withdrawal risk)</div>
+    <div className="text-[9px] text-muted mt-1">bars = allocation weight · <span style={{ color: "#eb365a" }}>red</span> = utilization &gt; 95% (withdrawal risk)</div>
+    </>) : (
     <table className="w-full text-[11px]">
       <thead>
         <tr className="text-muted uppercase tracking-wider text-[9px] text-left">
@@ -274,6 +288,7 @@ function AllocTable({ allocations }: { allocations: NonNullable<CompareRow["allo
         ))}
       </tbody>
     </table>
+    )}
     </>
   );
 }
