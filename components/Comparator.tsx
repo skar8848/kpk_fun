@@ -29,7 +29,6 @@ export default function Comparator() {
   const [rows, setRows] = useState<CompareRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [bench, setBench] = useState<"ALL" | "USD" | "ETH" | "EUR">("ALL");
   const [proto, setProto] = useState<"ALL" | "Morpho" | "Euler" | "Gearbox">("ALL");
   const [sortKey, setSortKey] = useState<string>("riskAdjApyPct");
   const [dir, setDir] = useState<1 | -1>(-1);
@@ -99,7 +98,7 @@ export default function Comparator() {
   ];
 
   const view = useMemo(() => {
-    const filtered = rows.filter((r) => (bench === "ALL" || r.benchmark === bench) && (proto === "ALL" || r.protocol === proto));
+    const filtered = rows.filter((r) => proto === "ALL" || r.protocol === proto);
     const c = cols.find((x) => x.key === sortKey);
     const val = (r: CompareRow) => (sortKey === "score" ? r.riskScore : (r as unknown as Record<string, unknown>)[sortKey]);
     return [...filtered].sort((a, b) => {
@@ -107,7 +106,7 @@ export default function Comparator() {
       if (c?.num || sortKey === "score") return (Number(vb) - Number(va)) * -dir;
       return String(va ?? "").localeCompare(String(vb ?? "")) * -dir;
     });
-  }, [rows, bench, proto, sortKey, dir]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [rows, proto, sortKey, dir]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const click = (k: string) => { if (k === sortKey) setDir((d) => (d === 1 ? -1 : 1)); else { setSortKey(k); setDir(-1); } };
   const selRows = selected.map((k) => rows.find((r) => rk(r) === k)).filter((r): r is CompareRow => !!r);
@@ -130,11 +129,6 @@ export default function Comparator() {
         <div className="flex rounded-lg border border-border overflow-hidden text-xs">
           {(["ALL", "Morpho", "Euler", "Gearbox"] as const).map((p) => (
             <button key={p} onClick={() => setProto(p)} className={`px-2.5 py-1.5 ${proto === p ? "bg-primary text-bg" : "text-muted-fg"}`}>{p}</button>
-          ))}
-        </div>
-        <div className="flex rounded-lg border border-border overflow-hidden text-xs">
-          {(["ALL", "USD", "ETH", "EUR"] as const).map((b) => (
-            <button key={b} onClick={() => setBench(b)} className={`px-2.5 py-1.5 ${bench === b ? "bg-primary text-bg" : "text-muted-fg"}`}>{b}</button>
           ))}
         </div>
       </div>
