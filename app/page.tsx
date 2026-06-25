@@ -11,6 +11,7 @@ import type { Graph, GraphNode } from "@/lib/graph";
 import { explorerAddr, shortAddr, oracleVendor, chainLabel } from "@/lib/explorer";
 import Stats from "@/components/Stats";
 import Dashboard from "@/components/Dashboard";
+import Comparator from "@/components/Comparator";
 
 const PRESETS = [
   { name: "Smokehouse USDC", addr: "0xBEeFFF209270748ddd194831b3fa287a5386f5bC" },
@@ -135,7 +136,7 @@ export default function Home() {
   }, [fetchGraph]);
 
   const [hideDeprecated, setHideDeprecated] = useState(false);
-  const [view, setView] = useState<"canvas" | "dashboard">("canvas");
+  const [view, setView] = useState<"canvas" | "dashboard" | "comparator">("canvas");
   const [addrFocused, setAddrFocused] = useState(false);
   const isAddr = /^0x[a-fA-F0-9]{40}$/.test(addr);
 
@@ -206,6 +207,7 @@ export default function Home() {
         <div className="flex rounded-lg border border-border overflow-hidden text-sm mr-1">
           <button onClick={() => setView("canvas")} className={`px-3 py-1.5 ${view === "canvas" ? "bg-primary text-bg" : "text-muted-fg"}`}>Canvas</button>
           <button onClick={() => setView("dashboard")} className={`px-3 py-1.5 ${view === "dashboard" ? "bg-primary text-bg" : "text-muted-fg"}`}>Dashboard</button>
+          <button onClick={() => setView("comparator")} className={`px-3 py-1.5 ${view === "comparator" ? "bg-primary text-bg" : "text-muted-fg"}`}>Comparator</button>
         </div>
         <input
           value={addrFocused || !isAddr ? addr : shortAddr(addr)}
@@ -241,7 +243,8 @@ export default function Home() {
       {error && <div className="px-4 py-2 text-red text-sm border-b border-border">{error}</div>}
 
       <div className="flex-1 relative">
-        {loading && (
+        {view === "comparator" && <Comparator />}
+        {loading && view !== "comparator" && (
           <div className="absolute inset-0 flex flex-col items-center justify-center z-30 backdrop-blur-sm" style={{ background: "rgba(10,18,28,0.6)" }}>
             <div className="w-8 h-8 rounded-full border-2 border-border border-t-primary animate-spin" />
             <div className="text-sm text-muted-fg mt-3">{loadingMsg}</div>

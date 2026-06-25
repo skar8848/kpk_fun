@@ -25,7 +25,7 @@ export async function getPegMap(): Promise<Record<string, number>> {
 }
 
 // résout un symbole -> prix de peg (direct, ou via sous-jacent stable)
-function resolvePeg(symbol: string, map: Record<string, number>, depth = 0): number | undefined {
+export function resolvePeg(symbol: string, map: Record<string, number>, depth = 0): number | undefined {
   const s = symbol.toLowerCase();
   if (map[s] != null) return map[s];
   if (depth > 4) return undefined;

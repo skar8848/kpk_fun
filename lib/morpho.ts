@@ -54,7 +54,7 @@ marketId lltv
 collateralAsset { symbol address decimals }
 loanAsset { symbol address decimals }
 warnings { type level }
-state { supplyAssetsUsd borrowAssetsUsd collateralAssetsUsd liquidityAssetsUsd utilization supplyApy borrowApy }
+state { supplyAssetsUsd borrowAssetsUsd collateralAssetsUsd liquidityAssetsUsd utilization supplyApy borrowApy netSupplyApy netBorrowApy }
 ${ORACLE_FRAG}`;
 
 type VaultResp = {
@@ -174,6 +174,30 @@ export async function getVaultV2(address: string, chain: string, depth = 0): Pro
 export async function getVault(address: string, chain: string): Promise<VaultNorm> {
   try { return await getVaultV1(address, chain); }
   catch { return await getVaultV2(address, chain); }
+}
+
+// Découverte : top vaults v1 pour un asset (par TVL).
+export async function discoverVaults(chain: string, symbol: string, limit = 6): Promise<string[]> {
+  const cid = CHAIN_IDS[chain];
+  if (!cid) return [];
+  const q = `query($s:[String!]!,$c:[Int!]!,$n:Int!){ vaults(first:$n, where:{assetSymbol_in:$s, chainId_in:$c}, orderBy:TotalAssetsUsd, orderDirection:Desc){ items { address } } }`;
+  try {
+    const d = await gql<{ vaults: { items: { address: string }[] } }>(q, { s: [symbol], c: [cid], n: limit });
+    return d.vaults.items.map((v) => v.address);
+  } catch { return []; }
+}
+
+// Découverte : top marchés (full data) dont le loan asset = symbol, par supply.
+export async function discoverMarkets(chain: string, symbol: string, limit = 10): Promise<Market[]> {
+  const cid = CHAIN_IDS[chain];
+  if (!cid) return [];
+  const aq = `query($s:[String!]!,$c:[Int!]!){ assets(first:10, where:{symbol_in:$s, chainId_in:$c}){ items { address symbol } } }`;
+  const ad = await gql<{ assets: { items: { address: string; symbol: string }[] } }>(aq, { s: [symbol], c: [cid] });
+  const addrs = ad.assets.items.filter((a) => a.symbol.toLowerCase() === symbol.toLowerCase()).map((a) => a.address);
+  if (!addrs.length) return [];
+  const mq = `query($a:[String!]!,$c:[Int!]!,$n:Int!){ markets(first:$n, where:{loanAssetAddress_in:$a, chainId_in:$c}, orderBy:SupplyAssetsUsd, orderDirection:Desc){ items { ${MARKET_FRAG} } } }`;
+  const md = await gql<{ markets: { items: Market[] } }>(mq, { a: addrs, c: [cid], n: limit });
+  return md.markets.items;
 }
 
 export async function getVaultV2Brief(address: string, chain: string): Promise<{ name: string | null; tvlUsd: number }> {

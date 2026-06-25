@@ -30,6 +30,8 @@ export type Market = {
     utilization: number | null;
     supplyApy: number | null;
     borrowApy: number | null;
+    netSupplyApy: number | null;
+    netBorrowApy: number | null;
   } | null;
 };
 
