@@ -12,6 +12,8 @@ import { explorerAddr, shortAddr, oracleVendor, chainLabel } from "@/lib/explore
 import Stats from "@/components/Stats";
 import Dashboard from "@/components/Dashboard";
 import Comparator from "@/components/Comparator";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 const PRESETS = [
   { name: "Smokehouse USDC", addr: "0xBEeFFF209270748ddd194831b3fa287a5386f5bC" },
@@ -204,37 +206,30 @@ export default function Home() {
     <div className="h-screen flex flex-col">
       <header className="border-b border-border px-4 py-3 flex items-center gap-3 flex-wrap">
         <div className="font-semibold tracking-tight mr-1">KPK <span className="text-primary">Explorer</span></div>
-        <div className="flex rounded-lg border border-border overflow-hidden text-sm mr-1">
-          <button onClick={() => setView("canvas")} className={`px-3 py-1.5 ${view === "canvas" ? "bg-primary text-bg" : "text-muted-fg"}`}>Canvas</button>
-          <button onClick={() => setView("dashboard")} className={`px-3 py-1.5 ${view === "dashboard" ? "bg-primary text-bg" : "text-muted-fg"}`}>Dashboard</button>
-          <button onClick={() => setView("comparator")} className={`px-3 py-1.5 ${view === "comparator" ? "bg-primary text-bg" : "text-muted-fg"}`}>Comparator</button>
-        </div>
+        <Segmented value={view} onChange={(v) => setView(v as typeof view)}
+          options={[{ v: "canvas", l: "Canvas" }, { v: "dashboard", l: "Dashboard" }, { v: "comparator", l: "Comparator" }]} />
         <input
           value={addrFocused || !isAddr ? addr : shortAddr(addr)}
           size={addrFocused || !isAddr ? Math.max(addr.length, 14) : 11}
           onChange={(e) => setAddr(e.target.value)}
           onFocus={() => setAddrFocused(true)} onBlur={() => setAddrFocused(false)}
           placeholder="0x… vault"
-          className="bg-bg border border-border rounded-lg px-2 py-1.5 text-sm mono text-center outline-none focus:border-primary"
+          className="h-8 bg-bg border border-border rounded-lg px-2 text-sm mono text-center outline-none focus:border-primary"
         />
         <select value={chain} onChange={(e) => setChain(e.target.value)}
-          className="bg-bg border border-border rounded-lg px-2 py-1.5 text-sm outline-none">
+          className="h-8 bg-bg border border-border rounded-lg px-2 text-sm outline-none">
           {CHAINS.map((c) => <option key={c} value={c}>{c}</option>)}
         </select>
-        <button onClick={() => load(addr, chain)} disabled={loading}
-          className="bg-primary text-bg font-medium rounded-lg px-4 py-1.5 text-sm disabled:opacity-50">Scan</button>
-        <button onClick={() => loadFootprint()} disabled={loading}
-          className="border border-primary text-primary font-medium rounded-lg px-4 py-1.5 text-sm disabled:opacity-50">🌐 KPK Footprint</button>
-        <button onClick={() => setHideDeprecated((s) => !s)} disabled={!graph}
+        <Button size="sm" onClick={() => load(addr, chain)} disabled={loading}>Scan</Button>
+        <Button variant="accent" size="sm" onClick={() => loadFootprint()} disabled={loading}>🌐 KPK Footprint</Button>
+        <Button variant="outline" size="sm" onClick={() => setHideDeprecated((s) => !s)} disabled={!graph}
           title="hide entities with an ended/unverified mandate"
-          className="rounded-lg px-3 py-1.5 text-sm disabled:opacity-40 border"
-          style={{ borderColor: hideDeprecated ? "#f5a623" : "var(--border)", color: hideDeprecated ? "#f5a623" : "var(--muted-fg)" }}>
+          className={cn(hideDeprecated && "border-yellow text-yellow hover:text-yellow hover:border-yellow")}>
           {hideDeprecated ? "Deprecated: hidden" : "Deprecated: shown"}
-        </button>
+        </Button>
         {meta.fromCache && <span className="text-[10px] text-muted-fg">⚡ cached</span>}
         {PRESETS.map((p) => (
-          <button key={p.addr} onClick={() => { setAddr(p.addr); load(p.addr, "ethereum"); }}
-            className="text-xs text-muted-fg hover:text-primary border border-border rounded-full px-3 py-1">{p.name}</button>
+          <Button key={p.addr} variant="chip" size="xs" onClick={() => { setAddr(p.addr); load(p.addr, "ethereum"); }}>{p.name}</Button>
         ))}
       </header>
 
@@ -321,7 +316,7 @@ export default function Home() {
         )}
 
         {graph && !showStats && !sel && (
-          <button onClick={() => setShowStats(true)} className="absolute top-3 right-3 z-10 card px-3 py-1.5 text-sm text-fg hover:text-primary">📊 Stats</button>
+          <Button variant="secondary" size="sm" onClick={() => setShowStats(true)} className="absolute top-3 right-3 z-10">📊 Stats</Button>
         )}
         {showStats && graph && <Stats graph={graph} onClose={() => setShowStats(false)} />}
         </>)}
@@ -330,6 +325,21 @@ export default function Home() {
   );
 }
 
+function Segmented({ value, onChange, options }: { value: string; onChange: (v: string) => void; options: { v: string; l: string }[] }) {
+  return (
+    <div className="flex h-8 rounded-lg border border-border p-0.5 gap-0.5 mr-1">
+      {options.map((o) => (
+        <button key={o.v} onClick={() => onChange(o.v)}
+          className={cn(
+            "px-3 rounded-md text-sm font-medium transition-colors",
+            value === o.v ? "bg-primary text-bg" : "text-muted-fg hover:text-fg hover:bg-white/5"
+          )}>
+          {o.l}
+        </button>
+      ))}
+    </div>
+  );
+}
 function Legend({ c, t }: { c: string; t: string }) {
   return (
     <div className="flex items-center gap-2">

@@ -4,6 +4,8 @@ import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, LabelList } from "recharts";
 import { explorerAddr, shortAddr, morphoUrl } from "@/lib/explorer";
 import type { CompareRow, ScoreFactor } from "@/lib/comparator";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 function usd(n?: number) {
   if (n == null) return "—";
@@ -117,18 +119,19 @@ export default function Comparator() {
         <h1 className="text-xl font-semibold">Vault & Market <span className="text-primary">Comparator</span></h1>
         <input value={asset} onChange={(e) => setAsset(e.target.value)} placeholder="vault name, curator, or 0x…"
           onKeyDown={(e) => e.key === "Enter" && loadSearch(asset, chain)}
-          className="w-56 bg-bg border border-border rounded-lg px-3 py-1.5 text-sm outline-none focus:border-primary" />
-        <select value={chain} onChange={(e) => setChain(e.target.value)} className="bg-bg border border-border rounded-lg px-2 py-1.5 text-sm outline-none">
+          className="h-8 w-56 bg-bg border border-border rounded-lg px-3 text-sm outline-none focus:border-primary" />
+        <select value={chain} onChange={(e) => setChain(e.target.value)} className="h-8 bg-bg border border-border rounded-lg px-2 text-sm outline-none">
           {CHAINS.map((c) => <option key={c} value={c}>{c}</option>)}
         </select>
-        <button onClick={() => loadSearch(asset, chain)} disabled={loading} className="bg-primary text-bg font-medium rounded-lg px-4 py-1.5 text-sm disabled:opacity-50">{loading ? "…" : "Compare"}</button>
-        <button onClick={() => loadKpk(chain)} disabled={loading} className="rounded-lg px-3 py-1.5 text-sm border border-primary text-primary">★ KPK only</button>
-        <button onClick={() => loadAll(chain, 0)} disabled={loading} className={`rounded-lg px-3 py-1.5 text-sm border ${mode === "all" ? "border-primary text-primary" : "border-border text-muted-fg"}`}>All vaults</button>
-        {PRESETS.map((p) => <button key={p.label} onClick={() => loadAssets(p.assets, chain)} className="text-xs text-muted-fg hover:text-primary border border-border rounded-full px-3 py-1">{p.label}</button>)}
+        <Button size="sm" onClick={() => loadSearch(asset, chain)} disabled={loading}>{loading ? "…" : "Compare"}</Button>
+        <Button variant="accent" size="sm" onClick={() => loadKpk(chain)} disabled={loading}>★ KPK only</Button>
+        <Button variant={mode === "all" ? "accent" : "outline"} size="sm" onClick={() => loadAll(chain, 0)} disabled={loading}>All vaults</Button>
+        {PRESETS.map((p) => <Button key={p.label} variant="chip" size="xs" onClick={() => loadAssets(p.assets, chain)}>{p.label}</Button>)}
         <div className="flex-1" />
-        <div className="flex rounded-lg border border-border overflow-hidden text-xs">
+        <div className="flex h-8 rounded-lg border border-border p-0.5 gap-0.5 text-xs">
           {(["ALL", "Morpho", "Euler", "Gearbox"] as const).map((p) => (
-            <button key={p} onClick={() => setProto(p)} className={`px-2.5 py-1.5 ${proto === p ? "bg-primary text-bg" : "text-muted-fg"}`}>{p}</button>
+            <button key={p} onClick={() => setProto(p)}
+              className={cn("px-2.5 rounded-md font-medium transition-colors", proto === p ? "bg-primary text-bg" : "text-muted-fg hover:text-fg hover:bg-white/5")}>{p}</button>
           ))}
         </div>
       </div>
@@ -182,11 +185,9 @@ export default function Comparator() {
 
       {mode === "all" && total > 0 && (
         <div className="flex items-center justify-center gap-3 mt-4 text-sm">
-          <button onClick={() => loadAll(chain, Math.max(0, skip - LIMIT))} disabled={loading || skip === 0}
-            className="border border-border rounded-lg px-3 py-1.5 disabled:opacity-40">← Prev</button>
+          <Button variant="outline" size="sm" onClick={() => loadAll(chain, Math.max(0, skip - LIMIT))} disabled={loading || skip === 0}>← Prev</Button>
           <span className="text-muted-fg">{skip + 1}–{Math.min(skip + LIMIT, total)} of {total} vaults</span>
-          <button onClick={() => loadAll(chain, skip + LIMIT)} disabled={loading || skip + LIMIT >= total}
-            className="border border-border rounded-lg px-3 py-1.5 disabled:opacity-40">Next →</button>
+          <Button variant="outline" size="sm" onClick={() => loadAll(chain, skip + LIMIT)} disabled={loading || skip + LIMIT >= total}>Next →</Button>
         </div>
       )}
     </div>
@@ -259,9 +260,9 @@ function AllocTable({ allocations }: { allocations: NonNullable<CompareRow["allo
   return (
     <>
     <div className="flex justify-end mb-2">
-      <div className="flex rounded border border-border overflow-hidden text-[10px]">
-        <button onClick={() => setNumbers(false)} className={`px-2 py-0.5 ${!numbers ? "bg-primary text-bg" : "text-muted-fg"}`}>📊 Chart</button>
-        <button onClick={() => setNumbers(true)} className={`px-2 py-0.5 ${numbers ? "bg-primary text-bg" : "text-muted-fg"}`}># Numbers</button>
+      <div className="flex rounded-md border border-border p-0.5 gap-0.5 text-[10px]">
+        <button onClick={() => setNumbers(false)} className={cn("px-2 py-0.5 rounded transition-colors", !numbers ? "bg-primary text-bg" : "text-muted-fg hover:text-fg")}>📊 Chart</button>
+        <button onClick={() => setNumbers(true)} className={cn("px-2 py-0.5 rounded transition-colors", numbers ? "bg-primary text-bg" : "text-muted-fg hover:text-fg")}># Numbers</button>
       </div>
     </div>
     {!numbers ? (<>

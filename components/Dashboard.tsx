@@ -150,11 +150,7 @@ export default function Dashboard({ graph }: { graph: Graph }) {
           <div className="px-1 py-1" style={{ height: 320 }}>
             <ResponsiveContainer width="100%" height="100%">
               <Treemap data={d.tree} dataKey="size" nameKey="name" stroke="#0a0a0b" content={<TreemapCell />} isAnimationActive={false}>
-                <RTooltip
-                  contentStyle={{ background: "#141416", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, fontSize: 11 }}
-                  itemStyle={{ color: "#ededf2" }}
-                  formatter={(v) => [usd(Number(v)), ""]}
-                />
+                <RTooltip content={<TreemapTip />} />
               </Treemap>
             </ResponsiveContainer>
           </div>
@@ -298,15 +294,27 @@ function TreemapCell({ x = 0, y = 0, width = 0, height = 0, name, size, fill }: 
       <rect x={x} y={y} width={width} height={height} fill={fill} stroke="#0a0a0b" strokeWidth={2} rx={3} />
       {show && (
         <>
-          <text x={x + 6} y={y + 16} fill="#0a0a0b" fontSize={11} fontWeight={600} className="select-none">
+          <text x={x + 7} y={y + 17} fill="#1a1a1d" fontSize={11} fontWeight={500} className="select-none">
             {String(name).slice(0, Math.floor(width / 7))}
           </text>
-          <text x={x + 6} y={y + 30} fill="rgba(10,18,28,0.75)" fontSize={10} className="select-none mono">
+          <text x={x + 7} y={y + 31} fill="rgba(26,26,29,0.6)" fontSize={10} className="select-none mono">
             {usd(Number(size))}
           </text>
         </>
       )}
     </g>
+  );
+}
+
+type TipProps = { active?: boolean; payload?: { payload: { name: string; size: number } }[] };
+function TreemapTip({ active, payload }: TipProps) {
+  if (!active || !payload?.length) return null;
+  const p = payload[0].payload;
+  return (
+    <div className="card px-2.5 py-1.5 text-xs shadow-lg">
+      <div className="font-medium text-fg">{p.name}</div>
+      <div className="mono text-primary">{usd(p.size)}</div>
+    </div>
   );
 }
 
