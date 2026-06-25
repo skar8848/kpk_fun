@@ -269,7 +269,7 @@ function AllocTable({ allocations }: { allocations: NonNullable<CompareRow["allo
       <BarChart data={chart} layout="vertical" margin={{ left: 0, right: 48, top: 0, bottom: 0 }}>
         <XAxis type="number" hide domain={[0, "dataMax"]} />
         <YAxis type="category" dataKey="name" width={150} tick={{ fill: "#8898a8", fontSize: 9 }} axisLine={false} tickLine={false} />
-        <Tooltip cursor={{ fill: "rgba(255,255,255,0.04)" }} contentStyle={{ background: "#0c1218", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, fontSize: 11 }} formatter={(v: unknown) => `${Number(v)}%`} />
+        <Tooltip cursor={{ fill: "rgba(255,255,255,0.04)" }} contentStyle={{ background: "#141416", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, fontSize: 11 }} formatter={(v: unknown) => `${Number(v)}%`} />
         <Bar dataKey="weight" radius={[0, 4, 4, 0]}>
           {chart.map((d, i) => <Cell key={i} fill={d.util > 95 ? "#eb365a" : "#55c3e9"} />)}
           <LabelList dataKey="weight" position="right" formatter={(v: unknown) => `${Number(v)}%`} fill="#8898a8" fontSize={9} />

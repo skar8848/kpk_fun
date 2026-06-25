@@ -44,8 +44,8 @@ function KNode({ data, selected }: NodeProps) {
     <div
       className="rounded-lg px-3 py-1.5 text-xs"
       style={{
-        background: filled ? (d.kind === "root" ? "#55c3e9" : "#11202c") : "#0c1218",
-        color: d.kind === "root" ? "#0a121c" : "#e8eef4",
+        background: filled ? (d.kind === "root" ? "#55c3e9" : "#1f1f23") : "#141416",
+        color: d.kind === "root" ? "#0a0a0b" : "#ededf2",
         border: `1px solid ${accent}`,
         borderStyle: d.pending ? "dashed" : "solid",
         boxShadow: selected ? `0 0 0 2px ${accent}` : "none",
@@ -263,7 +263,7 @@ export default function Home() {
           <MiniMap pannable zoomable nodeColor={(n) => {
             const d = n.data as unknown as GraphNode;
             return d.kind === "root" || d.kind === "group" ? "#55c3e9" : d.kind === "entity" ? "#586878" : sevColor[d.severity ?? "OK"];
-          }} maskColor="rgba(10,18,28,0.6)" style={{ background: "#0c1218" }} />
+          }} maskColor="rgba(10,10,11,0.6)" style={{ background: "#141416" }} />
         </ReactFlow>
 
         <div className="absolute top-3 left-3 card p-2.5 text-[11px] space-y-1 z-10">

@@ -77,7 +77,7 @@ function Chart({ title, data }: { title: string; data: Row[] }) {
           <YAxis type="category" dataKey="name" width={88} tick={{ fill: "#8898a8", fontSize: 10 }} axisLine={false} tickLine={false} />
           <Tooltip
             cursor={{ fill: "rgba(255,255,255,0.04)" }}
-            contentStyle={{ background: "#0c1218", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, fontSize: 12 }}
+            contentStyle={{ background: "#141416", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, fontSize: 12 }}
             formatter={(value: unknown) => usd(Number(value))}
           />
           <Bar dataKey="value" radius={[0, 4, 4, 0]}>

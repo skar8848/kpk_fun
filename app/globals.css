@@ -2,16 +2,16 @@
 
 /* Design system KPK / Pacifica */
 :root {
-  --bg: #0a121c;
-  --card: #0c1218;
+  --bg: #0a0a0b;
+  --card: #141416;
   --primary: #55c3e9;
   --green: #02c77b;
   --red: #eb365a;
   --yellow: #f5a623;
-  --muted: #586878;
-  --muted-fg: #8898a8;
+  --muted: #6b6b73;
+  --muted-fg: #9a9aa3;
   --border: rgba(255, 255, 255, 0.08);
-  --fg: #e8eef4;
+  --fg: #ededf2;
 }
 
 @theme inline {

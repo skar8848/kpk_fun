@@ -19,8 +19,9 @@ const DUNE = [
   { t: "Vaults Operations", u: "https://dune.com/kpk/kpk-vaults-operations" },
 ];
 
-const PROTO_COLOR: Record<string, string> = { Morpho: "#55c3e9", Euler: "#a855f7", Gearbox: "#02c77b" };
-const PALETTE = ["#55c3e9", "#a855f7", "#02c77b", "#f5a623", "#eb365a", "#8898a8", "#6ee7ff", "#c084fc", "#4ade80"];
+// palette pastel façon Dune
+const PROTO_COLOR: Record<string, string> = { Morpho: "#8ec3e0", Euler: "#b9a8e3", Gearbox: "#93d6b4" };
+const PALETTE = ["#8ec3e0", "#b9a8e3", "#93d6b4", "#f3cd95", "#e9a3ad", "#a6cfd6", "#d4c1ec", "#f5b9a0", "#b8d99a", "#c9c2a8"];
 
 type Col = { key: string; label: string; num?: boolean; render?: (r: Row) => React.ReactNode };
 type Row = Record<string, unknown>;
@@ -146,9 +147,15 @@ export default function Dashboard({ graph }: { graph: Graph }) {
       {/* Treemap exposition */}
       {d.tree.length > 0 && (
         <Section title="Exposure map — top positions by TVL">
-          <div className="px-1 py-1" style={{ height: 280 }}>
+          <div className="px-1 py-1" style={{ height: 320 }}>
             <ResponsiveContainer width="100%" height="100%">
-              <Treemap data={d.tree} dataKey="size" nameKey="name" stroke="#0a121c" content={<TreemapCell />} isAnimationActive={false} />
+              <Treemap data={d.tree} dataKey="size" nameKey="name" stroke="#0a0a0b" content={<TreemapCell />} isAnimationActive={false}>
+                <RTooltip
+                  contentStyle={{ background: "#141416", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, fontSize: 11 }}
+                  itemStyle={{ color: "#ededf2" }}
+                  formatter={(v) => [usd(Number(v)), ""]}
+                />
+              </Treemap>
             </ResponsiveContainer>
           </div>
         </Section>
@@ -256,15 +263,15 @@ function Donut({ title, data }: { title: string; data: Slice[] }) {
   return (
     <div className="card p-3">
       <div className="text-[10px] text-muted-fg uppercase tracking-wider mb-1">{title}</div>
-      <div style={{ height: 150 }}>
+      <div style={{ height: 210 }}>
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
-            <Pie data={rows} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={42} outerRadius={64} paddingAngle={1} isAnimationActive={false} stroke="none">
+            <Pie data={rows} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={58} outerRadius={92} paddingAngle={1} isAnimationActive={false} stroke="none">
               {rows.map((r, i) => <PieCell key={i} fill={r.fill} />)}
             </Pie>
             <RTooltip
-              contentStyle={{ background: "#0c1218", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, fontSize: 11 }}
-              itemStyle={{ color: "#e6edf3" }}
+              contentStyle={{ background: "#141416", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, fontSize: 11 }}
+              itemStyle={{ color: "#ededf2" }}
               formatter={(v) => { const n = Number(v); return [`${usd(n)} (${total ? ((n / total) * 100).toFixed(1) : 0}%)`, ""]; }}
             />
           </PieChart>
@@ -288,10 +295,10 @@ function TreemapCell({ x = 0, y = 0, width = 0, height = 0, name, size, fill }: 
   const show = width > 54 && height > 26;
   return (
     <g>
-      <rect x={x} y={y} width={width} height={height} fill={fill} stroke="#0a121c" strokeWidth={2} rx={3} />
+      <rect x={x} y={y} width={width} height={height} fill={fill} stroke="#0a0a0b" strokeWidth={2} rx={3} />
       {show && (
         <>
-          <text x={x + 6} y={y + 16} fill="#0a121c" fontSize={11} fontWeight={600} className="select-none">
+          <text x={x + 6} y={y + 16} fill="#0a0a0b" fontSize={11} fontWeight={600} className="select-none">
             {String(name).slice(0, Math.floor(width / 7))}
           </text>
           <text x={x + 6} y={y + 30} fill="rgba(10,18,28,0.75)" fontSize={10} className="select-none mono">
