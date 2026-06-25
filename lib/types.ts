@@ -56,6 +56,7 @@ export type VaultNorm = {
   asset: Asset | null;
   tvlUsd: number;
   apyPct?: number; // net APY du vault
+  curatorAddr?: string;
   allocations: { supplyUsd: number; market: Market }[];
 };
 

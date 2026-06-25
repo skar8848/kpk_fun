@@ -34,7 +34,7 @@ export function oracleScore(flags: string[]): number {
 function benchmarkOf(sym: string): string {
   const s = sym.toLowerCase();
   if (["weth", "eth", "wsteth", "reth", "cbeth", "steth", "weeth", "ezeth"].includes(s)) return "ETH";
-  if (["eure", "eurc", "ageur", "eur"].includes(s)) return "EUR";
+  if (["eurc", "eurcv", "eure", "ageur", "eur"].includes(s)) return "EUR";
   return "USD";
 }
 // collatéral = dollar synthétique (delta-neutral) ? -> plafonne le pegScore
@@ -63,6 +63,7 @@ export type CompareRow = {
   utilPct?: number; lltvPct?: number; liquidityUsd?: number;
   oracleAddr?: string; oracleVendor?: string;
   pegDeviationPct?: number; concentrationPct?: number;
+  curatorAddr?: string;
   benchmark: string;
   factors: ScoreFactor[];
   riskScore: number;
@@ -86,7 +87,7 @@ function marketFactors(m: Market, pegMap: Record<string, number>): ScoreFactor[]
   const factors: ScoreFactor[] = [
     { key: "util", label: "Utilization", raw: `${round(util * 100, 1)}%`, score: round(utilScore(util), 0), weight: 25 },
     { key: "lltv", label: "LLTV margin", raw: `${round(lltv * 100, 1)}%`, score: round(lltvScore(lltv), 0), weight: 15 },
-    { key: "oracle", label: `Oracle (${oracleVendor(m.oracle?.type, m.oracle?.address)})`, raw: orc.flags.length ? orc.flags.join(", ") : "market price", score: oracleScore(orc.flags), weight: 25 },
+    { key: "oracle", label: `Oracle (${oracleVendor(m.oracle?.type, m.oracle?.address, m.oracle?.data?.__typename)})`, raw: orc.flags.length ? orc.flags.join(", ") : "market price", score: oracleScore(orc.flags), weight: 25 },
   ];
   // collatéral : stable -> déviation réelle ; ETH/BTC -> pas de peg (N/A) ; inconnu -> pénalité
   if (price != null) {
@@ -114,7 +115,7 @@ export function buildMarketRow(m: Market, chain: string, pegMap: Record<string, 
     utilPct: st?.utilization != null ? round(st.utilization * 100, 1) : undefined,
     lltvPct: round((Number(m.lltv ?? 0) / 1e18) * 100, 1),
     liquidityUsd: st?.liquidityAssetsUsd != null ? Number(st.liquidityAssetsUsd) : undefined,
-    oracleAddr: m.oracle?.address, oracleVendor: oracleVendor(m.oracle?.type, m.oracle?.address),
+    oracleAddr: m.oracle?.address, oracleVendor: oracleVendor(m.oracle?.type, m.oracle?.address, m.oracle?.data?.__typename),
     pegDeviationPct: price == null ? undefined : round((price - 1) * 100, 2),
     benchmark: benchmarkOf(loan?.symbol ?? "USDC"),
     factors, riskScore, riskAdjApyPct: round((netApy * riskScore) / 100, 2),
@@ -150,6 +151,7 @@ export async function buildVaultRow(address: string, chain: string, pegMap: Reco
     netApyPct: round(netApy, 2), tvlUsd: v.tvlUsd,
     utilPct: round(wUtil * 100, 1), lltvPct: round(wLltv * 100, 1),
     concentrationPct: round(maxW * 100, 0),
+    curatorAddr: v.curatorAddr,
     benchmark: benchmarkOf(v.asset?.symbol ?? "USDC"),
     factors, riskScore, riskAdjApyPct: round((netApy * riskScore) / 100, 2),
     address,

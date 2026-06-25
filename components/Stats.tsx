@@ -49,7 +49,7 @@ export default function Stats({ graph, onClose }: { graph: Graph; onClose: () =>
   }, [graph]);
 
   return (
-    <div className="absolute inset-y-3 right-3 w-96 max-w-[92vw] card p-4 z-20 overflow-y-auto">
+    <div className="absolute top-3 right-3 w-96 max-w-[92vw] max-h-[88vh] card p-4 z-20 overflow-y-auto">
       <div className="flex justify-between items-center mb-3">
         <h2 className="font-semibold">Footprint stats</h2>
         <button onClick={onClose} className="text-muted-fg hover:text-fg">✕</button>

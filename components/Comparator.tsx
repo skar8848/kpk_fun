@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { explorerAddr, shortAddr } from "@/lib/explorer";
+import { explorerAddr, shortAddr, morphoUrl } from "@/lib/explorer";
 import type { CompareRow, ScoreFactor } from "@/lib/comparator";
 
 function usd(n?: number) {
@@ -12,7 +12,7 @@ function usd(n?: number) {
   return `$${n.toFixed(0)}`;
 }
 const scoreColor = (s: number) => (s >= 75 ? "#02c77b" : s >= 50 ? "#f5a623" : "#eb365a");
-const PRESETS = ["USDC", "WETH", "USDT", "EURe"];
+const PRESETS = ["USDC", "WETH", "USDT", "EURC", "EURCV"];
 const CHAINS = ["ethereum", "base", "arbitrum", "optimism", "polygon"];
 
 type Col = { key: keyof CompareRow | "score"; label: string; num?: boolean; render?: (r: CompareRow) => React.ReactNode };
@@ -30,7 +30,9 @@ export default function Comparator() {
   const load = useCallback(async (a: string, c: string, fresh = false) => {
     setLoading(true); setError(null);
     try {
-      const res = await fetch(`/api/compare?asset=${a}&chain=${c}${fresh ? "&fresh=1" : ""}`);
+      const q = a.trim();
+      const param = /^0x[a-fA-F0-9]{40}$/.test(q) ? `vaults=${q}` : `asset=${q}`;
+      const res = await fetch(`/api/compare?${param}&chain=${c}${fresh ? "&fresh=1" : ""}`);
       const d = await res.json();
       if (!res.ok) throw new Error(d.error ?? "error");
       setRows(d.rows);
@@ -41,8 +43,9 @@ export default function Comparator() {
   useEffect(() => { load("USDC", "ethereum"); }, [load]);
 
   const cols: Col[] = [
-    { key: "label", label: "Name", render: (r) => <span className="font-medium">{r.label}</span> },
+    { key: "label", label: "Name", render: (r) => <a className="font-medium text-primary hover:underline" href={morphoUrl(r.kind, r.chain, r.id)} target="_blank" rel="noreferrer">{r.label} ↗</a> },
     { key: "kind", label: "Type" },
+    { key: "curatorAddr", label: "Curator", render: (r) => (r.curatorAddr ? <a className="text-primary hover:underline" href={explorerAddr(r.chain, r.curatorAddr)} target="_blank" rel="noreferrer">{shortAddr(r.curatorAddr)} ↗</a> : "—") },
     { key: "chain", label: "Chain" },
     { key: "benchmark", label: "Bench" },
     { key: "netApyPct", label: "Net APY", num: true, render: (r) => <span style={{ color: "#02c77b" }}>{r.netApyPct.toFixed(2)}%</span> },
@@ -73,8 +76,9 @@ export default function Comparator() {
     <div className="h-full overflow-y-auto px-5 py-5 max-w-7xl mx-auto">
       <div className="flex items-center gap-3 flex-wrap mb-4">
         <h1 className="text-xl font-semibold">Vault & Market <span className="text-primary">Comparator</span></h1>
-        <input value={asset} onChange={(e) => setAsset(e.target.value)} placeholder="asset (USDC)"
-          className="w-28 bg-bg border border-border rounded-lg px-3 py-1.5 text-sm outline-none focus:border-primary" />
+        <input value={asset} onChange={(e) => setAsset(e.target.value)} placeholder="asset (USDC) or 0x vault…"
+          onKeyDown={(e) => e.key === "Enter" && load(asset, chain)}
+          className="w-52 bg-bg border border-border rounded-lg px-3 py-1.5 text-sm outline-none focus:border-primary" />
         <select value={chain} onChange={(e) => setChain(e.target.value)} className="bg-bg border border-border rounded-lg px-2 py-1.5 text-sm outline-none">
           {CHAINS.map((c) => <option key={c} value={c}>{c}</option>)}
         </select>

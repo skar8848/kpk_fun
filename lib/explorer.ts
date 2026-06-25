@@ -26,17 +26,24 @@ export function shortAddr(a: string): string {
   return `${a.slice(0, 6)}…${a.slice(-4)}`;
 }
 
+// Lien vers l'app Morpho (vault ou marché).
+export function morphoUrl(kind: "vault" | "market", chain: string, idOrAddr: string): string {
+  return `https://app.morpho.org/${chain}/${kind}/${idOrAddr}`;
+}
+
 // Overrides connus oracle/feed -> vendor (extensible). Sinon déduit du type Morpho.
 const VENDOR_BY_ADDR: Record<string, string> = {
   // ex: "0x...": "Pyth" / "RedStone" (à compléter au besoin)
 };
 
-export function oracleVendor(type?: string | null, addr?: string | null): string {
+export function oracleVendor(type?: string | null, addr?: string | null, dataTypename?: string | null): string {
   if (addr && VENDOR_BY_ADDR[addr.toLowerCase()]) return VENDOR_BY_ADDR[addr.toLowerCase()];
   const t = (type ?? "").toLowerCase();
-  if (t.includes("chainlink")) return "Chainlink";
   if (t.includes("pyth")) return "Pyth";
   if (t.includes("redstone")) return "RedStone";
+  if (t.includes("chainlink")) return "Chainlink";
+  // L'API renvoie souvent type="Unknown" alors que data est un ChainlinkOracleV2 valide.
+  if (dataTypename === "MorphoChainlinkOracleV2Data") return "Chainlink";
   if (t === "unknown" || t === "") return "Unknown";
   return "Custom";
 }

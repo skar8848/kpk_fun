@@ -21,7 +21,10 @@ export function analyzeOracle(market: Market): OracleAnalysis {
   const flags: string[] = [];
   const otype = o?.type ?? null;
 
-  if (otype === null || otype === "Unknown" || otype === "CustomOracle" || !data?.__typename) {
+  // Opaque UNIQUEMENT si aucune donnée d'oracle exploitable. NB: l'API renvoie
+  // souvent type="Unknown" alors que oracle.data est un MorphoChainlinkOracleV2Data
+  // valide (feeds Chainlink présents) -> ne PAS le flagger opaque dans ce cas.
+  if (!data?.__typename) {
     flags.push("opaque_oracle");
   }
 
