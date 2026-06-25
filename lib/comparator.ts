@@ -10,7 +10,9 @@ import { analyzeOracle } from "./oracleRisk";
 import { oracleVendor } from "./explorer";
 import { lookup } from "./knowledge";
 import { getPegMap, resolvePeg } from "./stablecoins";
-import { getEulerVaults, type EulerVault } from "./euler";
+import { getEulerVaults, getEulerKpk, type EulerVault } from "./euler";
+import { getGearbox, type GearboxPool } from "./gearbox";
+import { KPK_VAULTS } from "./kpkEntities";
 import { cached } from "./cache";
 import type { Market } from "./types";
 
@@ -63,7 +65,7 @@ export type ScoreFactor = { key: string; label: string; raw: string; score: numb
 export type VaultAllocation = { label: string; collateral: string; weightPct: number; supplyUsd: number; netApyPct: number; lltvPct: number; utilPct?: number; oracleVendor: string };
 export type CompareRow = {
   kind: "market" | "vault";
-  protocol: "Morpho" | "Euler";
+  protocol: "Morpho" | "Euler" | "Gearbox";
   id: string; chain: string; label: string;
   collateral?: { symbol: string; address: string };
   loan?: { symbol: string; address: string };
@@ -215,15 +217,33 @@ export function buildEulerRow(ev: EulerVault, pegMap: Record<string, number>): C
   };
 }
 
+// Gearbox (light) : score = peg de l'asset + placeholder (util/collatéral non scorés).
+export function buildGearboxRow(g: GearboxPool, pegMap: Record<string, number>): CompareRow {
+  const price = resolvePeg(g.assetSymbol, pegMap);
+  const factors: ScoreFactor[] = [];
+  if (price != null) {
+    const synth = isSynthetic(g.assetSymbol);
+    factors.push({ key: "peg", label: `Asset peg${synth ? " (synthetic)" : ""}`, raw: `${round((price - 1) * 100, 2)}%`, score: round(pegScore(Math.abs(price - 1), synth), 0), weight: 20 });
+  }
+  factors.push({ key: "todo", label: "Util / collateral (Gearbox light)", raw: "not scored", score: 55, weight: 40 });
+  const riskScore = combine(factors);
+  return {
+    kind: "vault", protocol: "Gearbox", id: g.id, chain: g.chain, label: `${g.assetSymbol} (Gearbox)`,
+    netApyPct: g.netApyPct, tvlUsd: g.tvlUsd, benchmark: benchmarkOf(g.assetSymbol),
+    factors, riskScore, riskAdjApyPct: round((g.netApyPct * riskScore) / 100, 2),
+  };
+}
+
 // Construit les lignes : par asset (auto-découverte) et/ou listes explicites.
 export async function compare(opts: {
-  chain: string; asset?: string; assets?: string[]; search?: string;
+  chain: string; asset?: string; assets?: string[]; search?: string; kpk?: boolean;
   vaults?: string[]; markets?: Market[];
 }): Promise<CompareRow[]> {
   const [pegMap, curatorMap] = await Promise.all([getPegMap(), getCuratorMap()]);
   const rows: CompareRow[] = [];
 
   let vaultAddrs = opts.vaults ?? [];
+  if (opts.kpk) vaultAddrs = [...new Set([...vaultAddrs, ...KPK_VAULTS.filter((v) => v.chain === opts.chain).map((v) => v.address)])];
   let markets = opts.markets ?? [];
   // recherche par nom de vault OU nom de curator
   if (opts.search) {
@@ -253,11 +273,18 @@ export async function compare(opts: {
   for (const r of vaultRows) if (r) rows.push(r);
   for (const m of markets) rows.push(buildMarketRow(m, opts.chain, pegMap));
 
-  // Euler v2 (par asset)
+  // Euler v2
+  let eulerVaults: EulerVault[] = [];
+  if (assetList.length) eulerVaults = (await Promise.all(assetList.map((a) => getEulerVaults(opts.chain, a, pegMap)))).flat();
+  else if (opts.kpk) eulerVaults = await getEulerKpk(opts.chain, pegMap);
+  const seenE = new Set<string>();
+  for (const e of eulerVaults) if (!seenE.has(e.address.toLowerCase())) { seenE.add(e.address.toLowerCase()); rows.push(buildEulerRow(e, pegMap)); }
+
+  // Gearbox (par asset)
   if (assetList.length) {
-    const ev = (await Promise.all(assetList.map((a) => getEulerVaults(opts.chain, a, pegMap)))).flat();
-    const seen = new Set<string>();
-    for (const e of ev) if (!seen.has(e.address.toLowerCase())) { seen.add(e.address.toLowerCase()); rows.push(buildEulerRow(e, pegMap)); }
+    const gb = (await Promise.all(assetList.map((a) => getGearbox(opts.chain, a)))).flat();
+    const seenG = new Set<string>();
+    for (const g of gb) if (!seenG.has(g.id)) { seenG.add(g.id); rows.push(buildGearboxRow(g, pegMap)); }
   }
 
   return finalize(rows);
@@ -269,8 +296,10 @@ export async function compareAllVaults(chain: string, skip: number, limit: numbe
   const { addresses, total } = await listAllVaults(chain, skip, limit);
   const built = await Promise.all(addresses.map((a) => buildVaultRow(a, chain, pegMap, curatorMap)));
   // Euler ajouté sur la 1re page (sinon casse la pagination Morpho)
-  const eulerRows = skip === 0 ? (await getEulerVaults(chain, "", pegMap)).map((e) => buildEulerRow(e, pegMap)) : [];
-  return { rows: finalize([...built.filter((r): r is CompareRow => !!r), ...eulerRows]), total };
+  const [eulerRows, gbRows] = skip === 0
+    ? [(await getEulerVaults(chain, "", pegMap)).map((e) => buildEulerRow(e, pegMap)), (await getGearbox(chain, "")).map((g) => buildGearboxRow(g, pegMap))]
+    : [[], []];
+  return { rows: finalize([...built.filter((r): r is CompareRow => !!r), ...eulerRows, ...gbRows]), total };
 }
 
 function finalize(rows: CompareRow[]): CompareRow[] {
