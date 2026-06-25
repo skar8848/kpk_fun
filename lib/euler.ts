@@ -4,6 +4,8 @@
 // LTV/oracle on-chain = phase 2 (full).
 
 import { cached } from "./cache";
+import { enrichEuler } from "./eulerOnchain";
+import { resolvePeg } from "./stablecoins";
 
 const SUBGRAPH: Record<string, string> = {
   ethereum: "mainnet", base: "base", arbitrum: "arbitrum", optimism: "optimism", unichain: "unichain",
@@ -20,7 +22,7 @@ const KPK_EULER_GOV = "0x060db084bf41872861f175d83f3cb1b5566dfea3";
 export type EulerVault = {
   address: string; chain: string; name: string; symbol: string; assetSymbol: string;
   netApyPct: number; tvlUsd: number; utilPct: number; oracleAddr: string; governorAddr: string;
-  curatorName?: string;
+  maxLiqLtvPct: number; curatorName?: string;
 };
 
 async function fetchDefiLlamaEuler(): Promise<Record<string, { tvlUsd: number; apy: number }>> {
@@ -49,7 +51,7 @@ type SubVault = {
   governonAdmin: string | null; state: { totalBorrows: string; cash: string; supplyApy: string } | null;
 };
 
-export async function getEulerVaults(chain: string, assetFilter = ""): Promise<EulerVault[]> {
+export async function getEulerVaults(chain: string, assetFilter: string, pegMap: Record<string, number> = {}): Promise<EulerVault[]> {
   const net = SUBGRAPH[chain];
   if (!net) return [];
   const q = `query($f:String){ eulerVaults(first:60, where:{symbol_contains:$f}){ id name symbol asset oracle governonAdmin state{ totalBorrows cash supplyApy } } }`;
@@ -60,26 +62,35 @@ export async function getEulerVaults(chain: string, assetFilter = ""): Promise<E
       body: JSON.stringify({ query: q, variables: { f: assetFilter } }), cache: "no-store",
     });
     const body = await res.json();
-    items = body.data?.eulerVaults ?? [];
+    items = (body.data?.eulerVaults ?? []).filter((v: SubVault) => v.state);
   } catch { return []; }
 
-  const dl = await dlEuler();
+  const [dl, onchain] = await Promise.all([
+    dlEuler(),
+    enrichEuler(chain, items.map((v) => ({ address: v.id, asset: v.asset }))),
+  ]);
+
   const out: EulerVault[] = [];
   for (const v of items) {
-    const st = v.state;
-    if (!st) continue;
+    const st = v.state!;
     const tb = Number(st.totalBorrows), cash = Number(st.cash);
     const util = tb + cash > 0 ? (tb / (tb + cash)) * 100 : 0;
     const baseApy = Number(st.supplyApy) / 1e27 * 100;
     const d = dl[`${DL_CHAIN[chain]}:${v.symbol}`];
-    const tvlUsd = d?.tvlUsd ?? 0;
-    if (tvlUsd < 10_000) continue; // dust / pas de prix
+    const oc = onchain.get(v.id.toLowerCase());
+    const assetSym = parseAsset(v.symbol);
+    // TVL : DefiLlama sinon on-chain (totalAssets × prix de peg pour les stables)
+    const price = resolvePeg(assetSym, pegMap);
+    const onchainTvl = oc && price != null ? (Number(oc.totalAssets) / 10 ** oc.decimals) * price : 0;
+    const tvlUsd = d?.tvlUsd ?? onchainTvl;
+    if (tvlUsd < 10_000) continue;
     const gov = (v.governonAdmin ?? "").toLowerCase();
     out.push({
-      address: v.id, chain, name: (v.name || v.symbol).replace("EVK Vault ", ""), symbol: v.symbol, assetSymbol: parseAsset(v.symbol),
+      address: v.id, chain, name: (v.name || v.symbol).replace("EVK Vault ", ""), symbol: v.symbol, assetSymbol: assetSym,
       netApyPct: Math.round((d?.apy ?? baseApy) * 100) / 100,
       tvlUsd, utilPct: Math.round(util * 10) / 10,
       oracleAddr: v.oracle ?? "", governorAddr: v.governonAdmin ?? "",
+      maxLiqLtvPct: oc?.maxLiqLtvPct ?? 0,
       curatorName: gov === KPK_EULER_GOV ? "KPK" : undefined,
     });
   }

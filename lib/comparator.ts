@@ -197,17 +197,17 @@ export function buildEulerRow(ev: EulerVault, pegMap: Record<string, number>): C
   const factors: ScoreFactor[] = [
     { key: "util", label: "Utilization", raw: `${ev.utilPct}%`, score: round(utilScore(util), 0), weight: 25 },
   ];
+  if (ev.maxLiqLtvPct > 0) factors.push({ key: "lltv", label: "Max liq. LTV", raw: `${ev.maxLiqLtvPct}%`, score: round(lltvScore(ev.maxLiqLtvPct / 100), 0), weight: 15 });
+  if (ev.oracleAddr) factors.push({ key: "oracle", label: "Oracle (Euler)", raw: "present", score: 85, weight: 25 });
   if (price != null) {
     const synth = isSynthetic(ev.assetSymbol);
     factors.push({ key: "peg", label: `Asset peg${synth ? " (synthetic)" : ""}`, raw: `${round((price - 1) * 100, 2)}%`, score: round(pegScore(Math.abs(price - 1), synth), 0), weight: 20 });
   }
-  // transparence : LTV/oracle Euler pas encore scorés (phase 2) -> discount honnête
-  factors.push({ key: "todo", label: "Collateral / oracle (phase 2)", raw: "not scored", score: 50, weight: 25 });
   const riskScore = combine(factors);
   return {
     kind: "vault", protocol: "Euler", id: ev.address, chain: ev.chain, label: ev.name,
     netApyPct: ev.netApyPct, tvlUsd: ev.tvlUsd, utilPct: ev.utilPct,
-    oracleAddr: ev.oracleAddr || undefined, oracleVendor: "?",
+    oracleAddr: ev.oracleAddr || undefined, oracleVendor: "Euler",
     curatorName: ev.curatorName, curatorAddr: ev.governorAddr || undefined,
     benchmark: benchmarkOf(ev.assetSymbol),
     factors, riskScore, riskAdjApyPct: round((ev.netApyPct * riskScore) / 100, 2),
@@ -255,7 +255,7 @@ export async function compare(opts: {
 
   // Euler v2 (par asset)
   if (assetList.length) {
-    const ev = (await Promise.all(assetList.map((a) => getEulerVaults(opts.chain, a)))).flat();
+    const ev = (await Promise.all(assetList.map((a) => getEulerVaults(opts.chain, a, pegMap)))).flat();
     const seen = new Set<string>();
     for (const e of ev) if (!seen.has(e.address.toLowerCase())) { seen.add(e.address.toLowerCase()); rows.push(buildEulerRow(e, pegMap)); }
   }
@@ -268,7 +268,9 @@ export async function compareAllVaults(chain: string, skip: number, limit: numbe
   const [pegMap, curatorMap] = await Promise.all([getPegMap(), getCuratorMap()]);
   const { addresses, total } = await listAllVaults(chain, skip, limit);
   const built = await Promise.all(addresses.map((a) => buildVaultRow(a, chain, pegMap, curatorMap)));
-  return { rows: finalize(built.filter((r): r is CompareRow => !!r)), total };
+  // Euler ajouté sur la 1re page (sinon casse la pagination Morpho)
+  const eulerRows = skip === 0 ? (await getEulerVaults(chain, "", pegMap)).map((e) => buildEulerRow(e, pegMap)) : [];
+  return { rows: finalize([...built.filter((r): r is CompareRow => !!r), ...eulerRows]), total };
 }
 
 function finalize(rows: CompareRow[]): CompareRow[] {
