@@ -1,8 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { explorerAddr, shortAddr, morphoUrl } from "@/lib/explorer";
+import { resolveTree } from "@/lib/decompose";
 import type { CompareRow, ScoreFactor } from "@/lib/comparator";
+import type { TreeNode } from "@/lib/types";
 
 function usd(n?: number) {
   if (n == null) return "—";
@@ -15,7 +17,7 @@ const scoreColor = (s: number) => (s >= 75 ? "#02c77b" : s >= 50 ? "#f5a623" : "
 const PRESETS = ["USDC", "WETH", "USDT", "EURC", "EURCV"];
 const CHAINS = ["ethereum", "base", "arbitrum", "optimism", "polygon"];
 
-type Col = { key: keyof CompareRow | "score"; label: string; num?: boolean; render?: (r: CompareRow) => React.ReactNode };
+type Col = { key: string; label: string; num?: boolean; render?: (r: CompareRow) => React.ReactNode };
 
 export default function Comparator() {
   const [asset, setAsset] = useState("USDC");
@@ -26,6 +28,8 @@ export default function Comparator() {
   const [bench, setBench] = useState<"ALL" | "USD" | "ETH" | "EUR">("ALL");
   const [sortKey, setSortKey] = useState<string>("riskAdjApyPct");
   const [dir, setDir] = useState<1 | -1>(-1);
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const rk = (r: CompareRow) => `${r.kind}:${r.id}`;
 
   const load = useCallback(async (a: string, c: string, fresh = false) => {
     setLoading(true); setError(null);
@@ -43,9 +47,10 @@ export default function Comparator() {
   useEffect(() => { load("USDC", "ethereum"); }, [load]);
 
   const cols: Col[] = [
+    { key: "exp", label: "", render: (r) => (r.collateral ? <button onClick={() => setExpanded((e) => (e === rk(r) ? null : rk(r)))} title="decompose collateral exposure" className="text-muted-fg hover:text-primary">{expanded === rk(r) ? "▾" : "⛓"}</button> : null) },
     { key: "label", label: "Name", render: (r) => <a className="font-medium text-primary hover:underline" href={morphoUrl(r.kind, r.chain, r.id)} target="_blank" rel="noreferrer">{r.label} ↗</a> },
     { key: "kind", label: "Type" },
-    { key: "curatorAddr", label: "Curator", render: (r) => (r.curatorAddr ? <a className="text-primary hover:underline" href={explorerAddr(r.chain, r.curatorAddr)} target="_blank" rel="noreferrer">{shortAddr(r.curatorAddr)} ↗</a> : "—") },
+    { key: "curatorName", label: "Curator", render: (r) => (r.curatorAddr ? <a className="text-primary hover:underline" href={explorerAddr(r.chain, r.curatorAddr)} target="_blank" rel="noreferrer">{r.curatorName ?? shortAddr(r.curatorAddr)} ↗</a> : "—") },
     { key: "chain", label: "Chain" },
     { key: "benchmark", label: "Bench" },
     { key: "netApyPct", label: "Net APY", num: true, render: (r) => <span style={{ color: "#02c77b" }}>{r.netApyPct.toFixed(2)}%</span> },
@@ -112,13 +117,23 @@ export default function Comparator() {
           </thead>
           <tbody>
             {view.map((r) => (
-              <tr key={`${r.kind}:${r.id}`} className="border-t border-border hover:bg-[rgba(255,255,255,0.02)]">
-                {cols.map((c) => (
-                  <td key={String(c.key)} className={`py-1.5 px-2 ${c.num ? "text-right mono" : ""}`}>
-                    {c.render ? c.render(r) : String((r as unknown as Record<string, unknown>)[c.key as string] ?? "—")}
-                  </td>
-                ))}
-              </tr>
+              <Fragment key={rk(r)}>
+                <tr className="border-t border-border hover:bg-[rgba(255,255,255,0.02)]">
+                  {cols.map((c) => (
+                    <td key={String(c.key)} className={`py-1.5 px-2 ${c.num ? "text-right mono" : ""}`}>
+                      {c.render ? c.render(r) : String((r as unknown as Record<string, unknown>)[c.key as string] ?? "—")}
+                    </td>
+                  ))}
+                </tr>
+                {expanded === rk(r) && r.collateral && (
+                  <tr className="border-t border-border">
+                    <td colSpan={cols.length} className="px-4 py-3" style={{ background: "rgba(255,255,255,0.02)" }}>
+                      <div className="text-[10px] text-muted-fg uppercase tracking-wider mb-1">Transitive exposure of {r.collateral.symbol}</div>
+                      <DepTree symbol={r.collateral.symbol} usd={r.tvlUsd} />
+                    </td>
+                  </tr>
+                )}
+              </Fragment>
             ))}
             {!view.length && !loading && <tr><td className="py-3 px-2 text-muted-fg" colSpan={cols.length}>No rows.</td></tr>}
           </tbody>
@@ -129,12 +144,14 @@ export default function Comparator() {
 }
 
 function RiskChip({ row }: { row: CompareRow }) {
+  const [up, setUp] = useState(false);
   return (
-    <span className="group relative inline-block">
+    <span className="group relative inline-block"
+      onMouseEnter={(e) => setUp(window.innerHeight - e.currentTarget.getBoundingClientRect().bottom < 260)}>
       <span className="rounded px-1.5 py-0.5 font-semibold cursor-help" style={{ color: scoreColor(row.riskScore), border: `1px solid ${scoreColor(row.riskScore)}` }}>
         {row.riskScore}
       </span>
-      <div className="hidden group-hover:block absolute right-0 top-full mt-1 z-30 w-64 card p-2.5 text-left normal-case tracking-normal">
+      <div className={`hidden group-hover:block absolute right-0 ${up ? "bottom-full mb-1" : "top-full mt-1"} z-30 w-64 card p-2.5 text-left normal-case tracking-normal`}>
         <div className="text-[10px] text-muted-fg mb-1">Risk score = weighted avg ({row.riskScore}/100)</div>
         {row.factors.map((f: ScoreFactor) => (
           <div key={f.key} className="flex justify-between gap-2 text-[11px] py-0.5">
@@ -145,5 +162,26 @@ function RiskChip({ row }: { row: CompareRow }) {
         <div className="text-[10px] text-muted pt-1">Risk-Adj APY = {row.netApyPct}% × {row.riskScore}/100 = {row.riskAdjApyPct}%</div>
       </div>
     </span>
+  );
+}
+
+function DepTree({ symbol, usd: usdVal }: { symbol: string; usd: number }) {
+  const tree = useMemo(() => resolveTree(symbol, usdVal), [symbol, usdVal]);
+  return <TreeRow node={tree} depth={0} />;
+}
+function TreeRow({ node, depth }: { node: TreeNode; depth: number }) {
+  return (
+    <>
+      <div className="text-xs py-0.5 flex items-center gap-2" style={{ paddingLeft: depth * 16 }}>
+        {depth > 0 && <span className="text-muted">└─</span>}
+        <span className="mono text-fg">{node.symbol}</span>
+        <span className="mono text-muted">{usd(node.usd)}</span>
+        {node.protocol && node.protocol !== "-" && node.protocol !== "?" && <span className="text-[10px] text-muted-fg border border-border rounded px-1">{node.protocol}</span>}
+        {node.mechanism && <span className="text-[10px] text-muted-fg">{node.mechanism}</span>}
+        {node.risk && <span className="text-[10px] text-yellow">⚠ {node.risk}</span>}
+        {node.unmapped && <span className="text-[10px] text-red">❓ unmapped</span>}
+      </div>
+      {node.children.map((c, i) => <TreeRow key={i} node={c} depth={depth + 1} />)}
+    </>
   );
 }

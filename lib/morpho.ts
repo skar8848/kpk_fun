@@ -179,6 +179,17 @@ export async function getVault(address: string, chain: string): Promise<VaultNor
   catch { return await getVaultV2(address, chain); }
 }
 
+// Map adresse(lowercase) -> nom de curator (toutes chaînes).
+export async function fetchCurators(): Promise<Record<string, string>> {
+  const q = `query{ curators(first:500){ items { name addresses { address } } } }`;
+  const map: Record<string, string> = {};
+  try {
+    const d = await gql<{ curators: { items: { name: string; addresses: { address: string }[] }[] } }>(q);
+    for (const c of d.curators.items) for (const a of c.addresses ?? []) if (a.address) map[a.address.toLowerCase()] = c.name;
+  } catch { /* best-effort */ }
+  return map;
+}
+
 // Découverte : top vaults v1 pour un asset (par TVL).
 export async function discoverVaults(chain: string, symbol: string, limit = 12): Promise<string[]> {
   const cid = CHAIN_IDS[chain];

@@ -5,12 +5,18 @@
 // Risk-Adjusted APY = netApy × (riskScore / 100).
 // Chaque sous-score expose {raw, score, weight} → tooltip auditable (pas de boîte noire).
 
-import { getVault, discoverVaults, discoverMarkets } from "./morpho";
+import { getVault, discoverVaults, discoverMarkets, fetchCurators } from "./morpho";
 import { analyzeOracle } from "./oracleRisk";
 import { oracleVendor } from "./explorer";
 import { lookup } from "./knowledge";
 import { getPegMap, resolvePeg } from "./stablecoins";
+import { cached } from "./cache";
 import type { Market } from "./types";
+
+async function getCuratorMap(): Promise<Record<string, string>> {
+  const { data } = await cached("curators", 30 * 60 * 1000, fetchCurators);
+  return data;
+}
 
 const clamp = (x: number) => Math.max(0, Math.min(100, x));
 const round = (x: number, p = 2) => Math.round(x * 10 ** p) / 10 ** p;
@@ -63,7 +69,7 @@ export type CompareRow = {
   utilPct?: number; lltvPct?: number; liquidityUsd?: number;
   oracleAddr?: string; oracleVendor?: string;
   pegDeviationPct?: number; concentrationPct?: number;
-  curatorAddr?: string;
+  curatorAddr?: string; curatorName?: string;
   benchmark: string;
   factors: ScoreFactor[];
   riskScore: number;
@@ -123,7 +129,7 @@ export function buildMarketRow(m: Market, chain: string, pegMap: Record<string, 
   };
 }
 
-export async function buildVaultRow(address: string, chain: string, pegMap: Record<string, number>): Promise<CompareRow | null> {
+export async function buildVaultRow(address: string, chain: string, pegMap: Record<string, number>, curatorMap: Record<string, string> = {}): Promise<CompareRow | null> {
   let v;
   try { v = await getVault(address, chain); } catch { return null; }
   const total = v.allocations.reduce((s, a) => s + a.supplyUsd, 0) || 1;
@@ -152,6 +158,7 @@ export async function buildVaultRow(address: string, chain: string, pegMap: Reco
     utilPct: round(wUtil * 100, 1), lltvPct: round(wLltv * 100, 1),
     concentrationPct: round(maxW * 100, 0),
     curatorAddr: v.curatorAddr,
+    curatorName: v.curatorAddr ? curatorMap[v.curatorAddr.toLowerCase()] : undefined,
     benchmark: benchmarkOf(v.asset?.symbol ?? "USDC"),
     factors, riskScore, riskAdjApyPct: round((netApy * riskScore) / 100, 2),
     address,
@@ -163,7 +170,7 @@ export async function compare(opts: {
   chain: string; asset?: string;
   vaults?: string[]; markets?: Market[];
 }): Promise<CompareRow[]> {
-  const pegMap = await getPegMap();
+  const [pegMap, curatorMap] = await Promise.all([getPegMap(), getCuratorMap()]);
   const rows: CompareRow[] = [];
 
   let vaultAddrs = opts.vaults ?? [];
@@ -174,7 +181,7 @@ export async function compare(opts: {
     markets = [...markets, ...dm];
   }
 
-  const vaultRows = await Promise.all(vaultAddrs.map((a) => buildVaultRow(a, opts.chain, pegMap)));
+  const vaultRows = await Promise.all(vaultAddrs.map((a) => buildVaultRow(a, opts.chain, pegMap, curatorMap)));
   for (const r of vaultRows) if (r) rows.push(r);
   for (const m of markets) rows.push(buildMarketRow(m, opts.chain, pegMap));
 

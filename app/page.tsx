@@ -225,8 +225,6 @@ export default function Home() {
           className="bg-primary text-bg font-medium rounded-lg px-4 py-1.5 text-sm disabled:opacity-50">Scan</button>
         <button onClick={() => loadFootprint()} disabled={loading}
           className="border border-primary text-primary font-medium rounded-lg px-4 py-1.5 text-sm disabled:opacity-50">🌐 KPK Footprint</button>
-        <button onClick={() => setShowStats((s) => !s)} disabled={!graph}
-          className="border border-border text-fg rounded-lg px-3 py-1.5 text-sm disabled:opacity-40">📊 Stats</button>
         <button onClick={() => setHideDeprecated((s) => !s)} disabled={!graph}
           title="hide entities with an ended/unverified mandate"
           className="rounded-lg px-3 py-1.5 text-sm disabled:opacity-40 border"
@@ -322,6 +320,9 @@ export default function Home() {
           </div>
         )}
 
+        {graph && !showStats && !sel && (
+          <button onClick={() => setShowStats(true)} className="absolute top-3 right-3 z-10 card px-3 py-1.5 text-sm text-fg hover:text-primary">📊 Stats</button>
+        )}
         {showStats && graph && <Stats graph={graph} onClose={() => setShowStats(false)} />}
         </>)}
       </div>
