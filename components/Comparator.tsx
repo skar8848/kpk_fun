@@ -1,6 +1,7 @@
 "use client";
 
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, LabelList } from "recharts";
 import { explorerAddr, shortAddr, morphoUrl } from "@/lib/explorer";
 import type { CompareRow, ScoreFactor } from "@/lib/comparator";
 
@@ -30,8 +31,10 @@ export default function Comparator() {
   const [mode, setMode] = useState<"all" | "search">("all");
   const [skip, setSkip] = useState(0);
   const [total, setTotal] = useState(0);
+  const [selected, setSelected] = useState<string[]>([]);
   const LIMIT = 15;
   const rk = (r: CompareRow) => `${r.kind}:${r.id}`;
+  const toggleSel = (k: string) => setSelected((s) => (s.includes(k) ? s.filter((x) => x !== k) : [...s, k].slice(-2)));
 
   const fetchUrl = useCallback(async (url: string) => {
     setLoading(true); setError(null); setExpanded(null);
@@ -60,6 +63,7 @@ export default function Comparator() {
   useEffect(() => { loadAll("ethereum", 0); }, [loadAll]);
 
   const cols: Col[] = [
+    { key: "sel", label: "", render: (r) => <input type="checkbox" checked={selected.includes(rk(r))} onChange={() => toggleSel(rk(r))} title="select for 1v1 compare" className="accent-[#55c3e9]" /> },
     { key: "exp", label: "", render: (r) => (r.kind === "vault" && r.allocations?.length ? <button onClick={() => setExpanded((e) => (e === rk(r) ? null : rk(r)))} title="decompose vault allocations" className="text-muted-fg hover:text-primary">{expanded === rk(r) ? "▾" : "⛓"}</button> : null) },
     { key: "label", label: "Name", render: (r) => <a className="font-medium text-primary hover:underline" href={morphoUrl(r.kind, r.chain, r.id)} target="_blank" rel="noreferrer">{r.label} ↗</a> },
     { key: "kind", label: "Type" },
@@ -89,6 +93,7 @@ export default function Comparator() {
   }, [rows, bench, sortKey, dir]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const click = (k: string) => { if (k === sortKey) setDir((d) => (d === 1 ? -1 : 1)); else { setSortKey(k); setDir(-1); } };
+  const selRows = selected.map((k) => rows.find((r) => rk(r) === k)).filter((r): r is CompareRow => !!r);
 
   return (
     <div className="h-full overflow-y-auto px-5 py-5 max-w-7xl mx-auto">
@@ -115,6 +120,10 @@ export default function Comparator() {
         Sorted by <span className="text-fg">Risk-Adjusted APY</span> = net APY × (risk score / 100). Hover a risk score to audit its factors.
         Net APY is always <span className="text-fg">after fees + rewards</span>.
       </p>
+
+      {selRows.length === 2
+        ? <VsPanel a={selRows[0]} b={selRows[1]} onClose={() => setSelected([])} />
+        : selected.length === 1 && <div className="text-xs text-primary mb-3">1 selected — pick a 2nd row to compare 1v1.</div>}
 
       {error && <div className="text-red text-sm mb-3">{error}</div>}
 
@@ -167,8 +176,82 @@ export default function Comparator() {
   );
 }
 
-function AllocTable({ allocations }: { allocations: NonNullable<CompareRow["allocations"]> }) {
+function VsPanel({ a, b, onClose }: { a: CompareRow; b: CompareRow; onClose: () => void }) {
+  const exposure = (r: CompareRow) => r.collateral?.symbol ?? (r.allocations ? `${r.allocations.length} markets` : "—");
+  const factorKeys = [...new Set([...a.factors, ...b.factors].map((f) => f.key))];
+  const fa = (k: string) => a.factors.find((f) => f.key === k);
+  const fb = (k: string) => b.factors.find((f) => f.key === k);
+  // différences clés : plus gros écarts de sous-score
+  const diffs = factorKeys
+    .map((k) => ({ k, label: (fa(k) ?? fb(k))!.label.replace(/ \(wtd\)| \(synthetic\)/g, ""), sa: fa(k)?.score ?? null, sb: fb(k)?.score ?? null }))
+    .filter((d) => d.sa != null && d.sb != null && Math.abs((d.sa as number) - (d.sb as number)) >= 10)
+    .sort((x, y) => Math.abs((y.sa! - y.sb!)) - Math.abs((x.sa! - x.sb!)));
+
+  const Num = ({ av, bv, high = true, suffix = "%" }: { av: number; bv: number; high?: boolean; suffix?: string }) => {
+    const aWin = high ? av > bv : av < bv;
+    const col = (win: boolean) => (av === bv ? "var(--muted-fg)" : win ? "#02c77b" : "var(--fg)");
+    return (<>
+      <span className="mono text-right" style={{ color: col(aWin) }}>{av}{suffix}</span>
+      <span className="mono text-right" style={{ color: col(!aWin) }}>{bv}{suffix}</span>
+    </>);
+  };
+
   return (
+    <div className="card p-4 mb-4">
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="font-semibold">1v1 — <span className="text-primary">{a.label}</span> vs <span className="text-primary">{b.label}</span></h2>
+        <button onClick={onClose} className="text-muted-fg hover:text-fg text-sm">clear ✕</button>
+      </div>
+      <div className="grid gap-x-4 gap-y-1 text-xs items-center" style={{ gridTemplateColumns: "150px 1fr 1fr" }}>
+        <span /><span className="text-muted-fg text-right truncate">{a.label}</span><span className="text-muted-fg text-right truncate">{b.label}</span>
+        <VsRow label="Type · Bench"><span className="text-right text-muted-fg">{a.kind}·{a.benchmark}</span><span className="text-right text-muted-fg">{b.kind}·{b.benchmark}</span></VsRow>
+        <VsRow label="Net APY"><Num av={a.netApyPct} bv={b.netApyPct} /></VsRow>
+        <VsRow label="Risk-Adj APY"><Num av={a.riskAdjApyPct} bv={b.riskAdjApyPct} /></VsRow>
+        <VsRow label="Risk score"><Num av={a.riskScore} bv={b.riskScore} suffix="" /></VsRow>
+        <div className="col-span-3 text-[10px] text-muted uppercase tracking-wider pt-2">Risk factors (higher = safer)</div>
+        {factorKeys.map((k) => {
+          const A = fa(k), B = fb(k);
+          return <VsRow key={k} label={(A ?? B)!.label.replace(/ \(wtd\)/, "")}>
+            <Num av={A?.score ?? 0} bv={B?.score ?? 0} suffix="" />
+          </VsRow>;
+        })}
+        <div className="col-span-3 text-[10px] text-muted uppercase tracking-wider pt-2">Exposure</div>
+        <VsRow label="Collateral / markets"><span className="mono text-right">{exposure(a)}</span><span className="mono text-right">{exposure(b)}</span></VsRow>
+        <VsRow label="Curator"><span className="text-right truncate">{a.curatorName ?? "—"}</span><span className="text-right truncate">{b.curatorName ?? "—"}</span></VsRow>
+      </div>
+      {diffs.length > 0 && (
+        <div className="mt-3 pt-3 border-t border-border text-xs">
+          <div className="text-[10px] text-muted uppercase tracking-wider mb-1">Key differences</div>
+          {diffs.slice(0, 3).map((d) => (
+            <div key={d.k} className="text-muted-fg">
+              <span className="text-fg">{d.label}</span>: {a.label.split(" ")[0]} <span style={{ color: scoreColor(d.sa!) }}>{d.sa}</span> vs {b.label.split(" ")[0]} <span style={{ color: scoreColor(d.sb!) }}>{d.sb}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+function VsRow({ label, children }: { label: string; children: React.ReactNode }) {
+  return (<><span className="text-muted-fg">{label}</span>{children}</>);
+}
+
+function AllocTable({ allocations }: { allocations: NonNullable<CompareRow["allocations"]> }) {
+  const chart = allocations.map((a) => ({ name: a.label, weight: a.weightPct, util: a.utilPct ?? 0 }));
+  return (
+    <>
+    <ResponsiveContainer width="100%" height={Math.max(70, chart.length * 24)}>
+      <BarChart data={chart} layout="vertical" margin={{ left: 0, right: 48, top: 0, bottom: 0 }}>
+        <XAxis type="number" hide domain={[0, "dataMax"]} />
+        <YAxis type="category" dataKey="name" width={150} tick={{ fill: "#8898a8", fontSize: 9 }} axisLine={false} tickLine={false} />
+        <Tooltip cursor={{ fill: "rgba(255,255,255,0.04)" }} contentStyle={{ background: "#0c1218", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, fontSize: 11 }} formatter={(v: unknown) => `${Number(v)}%`} />
+        <Bar dataKey="weight" radius={[0, 4, 4, 0]}>
+          {chart.map((d, i) => <Cell key={i} fill={d.util > 95 ? "#eb365a" : "#55c3e9"} />)}
+          <LabelList dataKey="weight" position="right" formatter={(v: unknown) => `${Number(v)}%`} fill="#8898a8" fontSize={9} />
+        </Bar>
+      </BarChart>
+    </ResponsiveContainer>
+    <div className="text-[9px] text-muted mt-1 mb-2">bars = allocation weight · <span style={{ color: "#eb365a" }}>red</span> = utilization &gt; 95% (withdrawal risk)</div>
     <table className="w-full text-[11px]">
       <thead>
         <tr className="text-muted uppercase tracking-wider text-[9px] text-left">
@@ -191,6 +274,7 @@ function AllocTable({ allocations }: { allocations: NonNullable<CompareRow["allo
         ))}
       </tbody>
     </table>
+    </>
   );
 }
 
