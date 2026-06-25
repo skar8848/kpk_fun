@@ -5,7 +5,7 @@
 // Risk-Adjusted APY = netApy × (riskScore / 100).
 // Chaque sous-score expose {raw, score, weight} → tooltip auditable (pas de boîte noire).
 
-import { getVault, discoverVaults, discoverMarkets, fetchCurators } from "./morpho";
+import { getVault, discoverVaults, discoverMarkets, fetchCurators, listAllVaults } from "./morpho";
 import { analyzeOracle } from "./oracleRisk";
 import { oracleVendor } from "./explorer";
 import { lookup } from "./knowledge";
@@ -59,6 +59,7 @@ function isVolatileBluechip(sym: string, depth = 0): boolean {
 }
 
 export type ScoreFactor = { key: string; label: string; raw: string; score: number; weight: number };
+export type VaultAllocation = { label: string; collateral: string; weightPct: number; supplyUsd: number; netApyPct: number; lltvPct: number; utilPct?: number; oracleVendor: string };
 export type CompareRow = {
   kind: "market" | "vault";
   id: string; chain: string; label: string;
@@ -71,6 +72,7 @@ export type CompareRow = {
   pegDeviationPct?: number; concentrationPct?: number;
   curatorAddr?: string; curatorName?: string;
   benchmark: string;
+  allocations?: VaultAllocation[]; // décompo Morpho-like (vaults)
   factors: ScoreFactor[];
   riskScore: number;
   riskAdjApyPct: number;
@@ -149,17 +151,38 @@ export async function buildVaultRow(address: string, chain: string, pegMap: Reco
   factors.push({ key: "conc", label: "Concentration", raw: `max ${round(maxW * 100, 0)}%`, score: round(concentrationScore(maxW), 0), weight: 15 });
   const riskScore = combine(factors);
   const netApy = v.apyPct ?? 0;
+  // curator : l'adresse on-chain curator est parfois 0x0 -> retomber sur owner ;
+  // résoudre le nom via le registre Morpho (sur curator OU owner).
+  const ZERO = "0x0000000000000000000000000000000000000000";
+  const candidates = [v.curatorAddr, v.ownerAddr].filter((a): a is string => !!a && a !== ZERO);
+  let curatorAddr: string | undefined; let curatorName: string | undefined;
+  for (const a of candidates) { if (curatorMap[a.toLowerCase()]) { curatorAddr = a; curatorName = curatorMap[a.toLowerCase()]; break; } }
+  if (!curatorAddr) curatorAddr = candidates[0];
   // util/lltv pondérés pour affichage
   const wUtil = v.allocations.reduce((s, a) => s + (a.market.state?.utilization ?? 0) * (a.supplyUsd / total), 0);
   const wLltv = v.allocations.reduce((s, a) => s + (Number(a.market.lltv ?? 0) / 1e18) * (a.supplyUsd / total), 0);
+  // décompo Morpho-like : allocations du vault
+  const allocations: VaultAllocation[] = v.allocations.map((a) => {
+    const m = a.market;
+    return {
+      label: `${m.collateralAsset?.symbol ?? "?"} / ${m.loanAsset?.symbol ?? "?"}`,
+      collateral: m.collateralAsset?.symbol ?? "?",
+      weightPct: round((a.supplyUsd / total) * 100, 1),
+      supplyUsd: a.supplyUsd,
+      netApyPct: round((m.state?.netSupplyApy ?? m.state?.supplyApy ?? 0) * 100, 2),
+      lltvPct: round((Number(m.lltv ?? 0) / 1e18) * 100, 1),
+      utilPct: m.state?.utilization != null ? round(m.state.utilization * 100, 1) : undefined,
+      oracleVendor: oracleVendor(m.oracle?.type, m.oracle?.address, m.oracle?.data?.__typename),
+    };
+  }).sort((x, y) => y.supplyUsd - x.supplyUsd);
   return {
     kind: "vault", id: address, chain, label: v.name ?? "vault",
     netApyPct: round(netApy, 2), tvlUsd: v.tvlUsd,
     utilPct: round(wUtil * 100, 1), lltvPct: round(wLltv * 100, 1),
     concentrationPct: round(maxW * 100, 0),
-    curatorAddr: v.curatorAddr,
-    curatorName: v.curatorAddr ? curatorMap[v.curatorAddr.toLowerCase()] : undefined,
+    curatorAddr, curatorName,
     benchmark: benchmarkOf(v.asset?.symbol ?? "USDC"),
+    allocations,
     factors, riskScore, riskAdjApyPct: round((netApy * riskScore) / 100, 2),
     address,
   };
@@ -167,7 +190,7 @@ export async function buildVaultRow(address: string, chain: string, pegMap: Reco
 
 // Construit les lignes : par asset (auto-découverte) et/ou listes explicites.
 export async function compare(opts: {
-  chain: string; asset?: string;
+  chain: string; asset?: string; assets?: string[];
   vaults?: string[]; markets?: Market[];
 }): Promise<CompareRow[]> {
   const [pegMap, curatorMap] = await Promise.all([getPegMap(), getCuratorMap()]);
@@ -175,16 +198,35 @@ export async function compare(opts: {
 
   let vaultAddrs = opts.vaults ?? [];
   let markets = opts.markets ?? [];
-  if (opts.asset) {
-    const [dv, dm] = await Promise.all([discoverVaults(opts.chain, opts.asset), discoverMarkets(opts.chain, opts.asset)]);
-    vaultAddrs = [...new Set([...vaultAddrs, ...dv])];
-    markets = [...markets, ...dm];
+  const assetList = [...(opts.assets ?? []), ...(opts.asset ? [opts.asset] : [])];
+  if (assetList.length) {
+    const discovered = await Promise.all(
+      assetList.map(async (a) => ({ v: await discoverVaults(opts.chain, a), m: await discoverMarkets(opts.chain, a) })),
+    );
+    const seenV = new Set(vaultAddrs.map((a) => a.toLowerCase()));
+    const seenM = new Set(markets.map((m) => m.marketId));
+    for (const d of discovered) {
+      for (const a of d.v) if (!seenV.has(a.toLowerCase())) { seenV.add(a.toLowerCase()); vaultAddrs.push(a); }
+      for (const m of d.m) if (!seenM.has(m.marketId)) { seenM.add(m.marketId); markets.push(m); }
+    }
   }
 
   const vaultRows = await Promise.all(vaultAddrs.map((a) => buildVaultRow(a, opts.chain, pegMap, curatorMap)));
   for (const r of vaultRows) if (r) rows.push(r);
   for (const m of markets) rows.push(buildMarketRow(m, opts.chain, pegMap));
 
+  return finalize(rows);
+}
+
+// Tous les vaults Morpho, paginés (par TVL desc).
+export async function compareAllVaults(chain: string, skip: number, limit: number): Promise<{ rows: CompareRow[]; total: number }> {
+  const [pegMap, curatorMap] = await Promise.all([getPegMap(), getCuratorMap()]);
+  const { addresses, total } = await listAllVaults(chain, skip, limit);
+  const built = await Promise.all(addresses.map((a) => buildVaultRow(a, chain, pegMap, curatorMap)));
+  return { rows: finalize(built.filter((r): r is CompareRow => !!r)), total };
+}
+
+function finalize(rows: CompareRow[]): CompareRow[] {
   // APY > 100% sur un marché de prêt = distressed/non-soutenable (depeg, manip, dust),
   // pas une cible d'allocation de trésorerie -> exclu. TVL < $10k = dust -> exclu.
   return rows

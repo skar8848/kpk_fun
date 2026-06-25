@@ -61,7 +61,7 @@ type VaultResp = {
   vaultByAddress: {
     name: string | null;
     asset: { symbol: string; address: string; decimals: number } | null;
-    state: { totalAssetsUsd: string | null; netApy: number | null; curator: string | null; allocation: { supplyAssetsUsd: string | null; market: Market }[] | null } | null;
+    state: { totalAssetsUsd: string | null; netApy: number | null; curator: string | null; owner: string | null; allocation: { supplyAssetsUsd: string | null; market: Market }[] | null } | null;
   } | null;
 };
 
@@ -71,13 +71,13 @@ export async function getVaultV1(address: string, chain: string): Promise<VaultN
   const q = `query($a:String!,$c:Int!){
     vaultByAddress(address:$a, chainId:$c){
       name asset{symbol address decimals}
-      state{ totalAssetsUsd netApy curator allocation{ supplyAssetsUsd market{ ${MARKET_FRAG} } } }
+      state{ totalAssetsUsd netApy curator owner allocation{ supplyAssetsUsd market{ ${MARKET_FRAG} } } }
     }
   }`;
   const data = await gql<VaultResp>(q, { a: address, c: cid });
   const v = data.vaultByAddress;
   if (!v) throw new Error(`vault v1 ${address} introuvable sur ${chain}`);
-  const st = v.state ?? { totalAssetsUsd: "0", netApy: null, curator: null, allocation: [] };
+  const st = v.state ?? { totalAssetsUsd: "0", netApy: null, curator: null, owner: null, allocation: [] };
   const allocations = (st.allocation ?? [])
     .map((a) => ({ supplyUsd: Number(a.supplyAssetsUsd ?? 0), market: a.market }))
     .filter((a) => a.supplyUsd > 0 && a.market)
@@ -87,6 +87,7 @@ export async function getVaultV1(address: string, chain: string): Promise<VaultN
     tvlUsd: Number(st.totalAssetsUsd ?? 0),
     apyPct: st.netApy != null ? Math.round(st.netApy * 1e4) / 100 : undefined,
     curatorAddr: st.curator ?? undefined,
+    ownerAddr: st.owner ?? undefined,
     allocations,
   };
 }
@@ -106,6 +107,7 @@ type V2Resp = {
     totalAssetsUsd: string | null;
     netApy: number | null;
     curator: { address: string } | null;
+    owner: { address: string } | null;
     adapters: {
       items: {
         __typename: string;
@@ -124,7 +126,7 @@ export async function getVaultV2(address: string, chain: string, depth = 0): Pro
   if (!cid) throw new Error(`chaîne inconnue: ${chain}`);
   const q = `query($a:String!,$c:Int!){
     vaultV2ByAddress(address:$a, chainId:$c){
-      name asset{symbol address decimals} totalAssetsUsd netApy curator{ address }
+      name asset{symbol address decimals} totalAssetsUsd netApy curator{ address } owner{ address }
       adapters{ items {
         __typename
         ... on MorphoMarketV1Adapter { positions { items { state { supplyAssetsUsd } market { marketId } } } }
@@ -169,6 +171,7 @@ export async function getVaultV2(address: string, chain: string, depth = 0): Pro
     tvlUsd: Number(v.totalAssetsUsd ?? 0),
     apyPct: v.netApy != null ? Math.round(v.netApy * 1e4) / 100 : undefined,
     curatorAddr: v.curator?.address,
+    ownerAddr: v.owner?.address,
     allocations: merged,
   };
 }
@@ -177,6 +180,17 @@ export async function getVaultV2(address: string, chain: string, depth = 0): Pro
 export async function getVault(address: string, chain: string): Promise<VaultNorm> {
   try { return await getVaultV1(address, chain); }
   catch { return await getVaultV2(address, chain); }
+}
+
+// Tous les vaults Morpho d'une chaîne, paginés par TVL desc.
+export async function listAllVaults(chain: string, skip = 0, limit = 15): Promise<{ addresses: string[]; total: number }> {
+  const cid = CHAIN_IDS[chain];
+  if (!cid) return { addresses: [], total: 0 };
+  const q = `query($c:[Int!]!,$s:Int!,$n:Int!){ vaults(first:$n, skip:$s, where:{chainId_in:$c, totalAssetsUsd_gte:10000}, orderBy:TotalAssetsUsd, orderDirection:Desc){ items{ address } pageInfo{ countTotal } } }`;
+  try {
+    const d = await gql<{ vaults: { items: { address: string }[]; pageInfo: { countTotal: number } } }>(q, { c: [cid], s: skip, n: limit });
+    return { addresses: d.vaults.items.map((v) => v.address), total: d.vaults.pageInfo?.countTotal ?? 0 };
+  } catch { return { addresses: [], total: 0 }; }
 }
 
 // Map adresse(lowercase) -> nom de curator (toutes chaînes).
