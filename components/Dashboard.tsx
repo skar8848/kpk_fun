@@ -139,7 +139,7 @@ export default function Dashboard({ graph }: { graph: Graph }) {
 
       {/* Donuts */}
       <div className="grid md:grid-cols-3 gap-4">
-        <Donut title="By protocol" data={d.protocols.map((p) => ({ name: p.protocol, value: p.tvl, fill: PROTO_COLOR[p.protocol] ?? "#8898a8" }))} />
+        <Donut title="By protocol" data={d.protocols.map((p, i) => ({ name: p.protocol, value: p.tvl, fill: PROTO_COLOR[p.protocol] ?? PALETTE[i % PALETTE.length] }))} />
         <Donut title="By chain" data={d.chains.map((c, i) => ({ name: chainLabel(c.chain), value: c.tvl, fill: PALETTE[i % PALETTE.length] }))} />
         <Donut title="By risk primitive" data={d.primitives.slice(0, 8).map((p, i) => ({ name: p.asset, value: p.tvl, fill: PALETTE[i % PALETTE.length] }))} />
       </div>
@@ -265,11 +265,7 @@ function Donut({ title, data }: { title: string; data: Slice[] }) {
             <Pie data={rows} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={58} outerRadius={92} paddingAngle={1} isAnimationActive={false} stroke="none">
               {rows.map((r, i) => <PieCell key={i} fill={r.fill} />)}
             </Pie>
-            <RTooltip
-              contentStyle={{ background: "#141416", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, fontSize: 11 }}
-              itemStyle={{ color: "#ededf2" }}
-              formatter={(v) => { const n = Number(v); return [`${usd(n)} (${total ? ((n / total) * 100).toFixed(1) : 0}%)`, ""]; }}
-            />
+            <RTooltip content={<DonutTip total={total} />} />
           </PieChart>
         </ResponsiveContainer>
       </div>
@@ -303,6 +299,19 @@ function TreemapCell({ x = 0, y = 0, width = 0, height = 0, name, size, fill }: 
         </>
       )}
     </g>
+  );
+}
+
+type DonutTipProps = { active?: boolean; payload?: { payload: { name: string; value: number; fill: string } }[]; total: number };
+function DonutTip({ active, payload, total }: DonutTipProps) {
+  if (!active || !payload?.length) return null;
+  const p = payload[0].payload;
+  return (
+    <div className="card px-2.5 py-1.5 text-xs shadow-lg flex items-center gap-1.5">
+      <span className="inline-block w-2 h-2 rounded-sm shrink-0" style={{ background: p.fill }} />
+      <span className="text-fg font-medium">{p.name}</span>
+      <span className="mono text-muted-fg">{usd(p.value)}{total ? ` · ${((p.value / total) * 100).toFixed(1)}%` : ""}</span>
+    </div>
   );
 }
 
