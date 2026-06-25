@@ -10,6 +10,7 @@ import { analyzeOracle } from "./oracleRisk";
 import { oracleVendor } from "./explorer";
 import { lookup } from "./knowledge";
 import { getPegMap, resolvePeg } from "./stablecoins";
+import { getEulerVaults, type EulerVault } from "./euler";
 import { cached } from "./cache";
 import type { Market } from "./types";
 
@@ -62,6 +63,7 @@ export type ScoreFactor = { key: string; label: string; raw: string; score: numb
 export type VaultAllocation = { label: string; collateral: string; weightPct: number; supplyUsd: number; netApyPct: number; lltvPct: number; utilPct?: number; oracleVendor: string };
 export type CompareRow = {
   kind: "market" | "vault";
+  protocol: "Morpho" | "Euler";
   id: string; chain: string; label: string;
   collateral?: { symbol: string; address: string };
   loan?: { symbol: string; address: string };
@@ -115,7 +117,7 @@ export function buildMarketRow(m: Market, chain: string, pegMap: Record<string, 
   const col = m.collateralAsset, loan = m.loanAsset;
   const price = resolvePeg(col?.symbol ?? "", pegMap);
   return {
-    kind: "market", id: m.marketId, chain,
+    kind: "market", protocol: "Morpho", id: m.marketId, chain,
     label: `${col?.symbol ?? "?"} / ${loan?.symbol ?? "?"}`,
     collateral: col ? { symbol: col.symbol ?? "?", address: col.address } : undefined,
     loan: loan ? { symbol: loan.symbol ?? "?", address: loan.address } : undefined,
@@ -176,7 +178,7 @@ export async function buildVaultRow(address: string, chain: string, pegMap: Reco
     };
   }).sort((x, y) => y.supplyUsd - x.supplyUsd);
   return {
-    kind: "vault", id: address, chain, label: v.name ?? "vault",
+    kind: "vault", protocol: "Morpho", id: address, chain, label: v.name ?? "vault",
     netApyPct: round(netApy, 2), tvlUsd: v.tvlUsd,
     utilPct: round(wUtil * 100, 1), lltvPct: round(wLltv * 100, 1),
     concentrationPct: round(maxW * 100, 0),
@@ -185,6 +187,31 @@ export async function buildVaultRow(address: string, chain: string, pegMap: Reco
     allocations,
     factors, riskScore, riskAdjApyPct: round((netApy * riskScore) / 100, 2),
     address,
+  };
+}
+
+// Euler v2 (light) : score = utilization + peg de l'asset (renormalisé). LTV/oracle = phase 2.
+export function buildEulerRow(ev: EulerVault, pegMap: Record<string, number>): CompareRow {
+  const util = ev.utilPct / 100;
+  const price = resolvePeg(ev.assetSymbol, pegMap);
+  const factors: ScoreFactor[] = [
+    { key: "util", label: "Utilization", raw: `${ev.utilPct}%`, score: round(utilScore(util), 0), weight: 25 },
+  ];
+  if (price != null) {
+    const synth = isSynthetic(ev.assetSymbol);
+    factors.push({ key: "peg", label: `Asset peg${synth ? " (synthetic)" : ""}`, raw: `${round((price - 1) * 100, 2)}%`, score: round(pegScore(Math.abs(price - 1), synth), 0), weight: 20 });
+  }
+  // transparence : LTV/oracle Euler pas encore scorés (phase 2) -> discount honnête
+  factors.push({ key: "todo", label: "Collateral / oracle (phase 2)", raw: "not scored", score: 50, weight: 25 });
+  const riskScore = combine(factors);
+  return {
+    kind: "vault", protocol: "Euler", id: ev.address, chain: ev.chain, label: ev.name,
+    netApyPct: ev.netApyPct, tvlUsd: ev.tvlUsd, utilPct: ev.utilPct,
+    oracleAddr: ev.oracleAddr || undefined, oracleVendor: "?",
+    curatorName: ev.curatorName, curatorAddr: ev.governorAddr || undefined,
+    benchmark: benchmarkOf(ev.assetSymbol),
+    factors, riskScore, riskAdjApyPct: round((ev.netApyPct * riskScore) / 100, 2),
+    address: ev.address,
   };
 }
 
@@ -225,6 +252,13 @@ export async function compare(opts: {
   const vaultRows = await Promise.all(vaultAddrs.map((a) => buildVaultRow(a, opts.chain, pegMap, curatorMap)));
   for (const r of vaultRows) if (r) rows.push(r);
   for (const m of markets) rows.push(buildMarketRow(m, opts.chain, pegMap));
+
+  // Euler v2 (par asset)
+  if (assetList.length) {
+    const ev = (await Promise.all(assetList.map((a) => getEulerVaults(opts.chain, a)))).flat();
+    const seen = new Set<string>();
+    for (const e of ev) if (!seen.has(e.address.toLowerCase())) { seen.add(e.address.toLowerCase()); rows.push(buildEulerRow(e, pegMap)); }
+  }
 
   return finalize(rows);
 }

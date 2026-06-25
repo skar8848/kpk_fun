@@ -72,6 +72,7 @@ export default function Comparator() {
     { key: "exp", label: "", render: (r) => (r.kind === "vault" && r.allocations?.length ? <button onClick={() => setExpanded((e) => (e === rk(r) ? null : rk(r)))} title="decompose vault allocations" className="text-muted-fg hover:text-primary">{expanded === rk(r) ? "▾" : "⛓"}</button> : null) },
     { key: "label", label: "Name", render: (r) => <a className="font-medium text-primary hover:underline" href={morphoUrl(r.kind, r.chain, r.id)} target="_blank" rel="noreferrer">{r.label} ↗</a> },
     { key: "kind", label: "Type" },
+    { key: "protocol", label: "Protocol", render: (r) => <span style={{ color: r.protocol === "Euler" ? "#7c5cff" : "var(--muted-fg)" }}>{r.protocol}</span> },
     { key: "curatorName", label: "Curator", render: (r) => (r.curatorAddr ? <a className="text-primary hover:underline" href={explorerAddr(r.chain, r.curatorAddr)} target="_blank" rel="noreferrer">{r.curatorName ?? shortAddr(r.curatorAddr)} ↗</a> : "—") },
     { key: "chain", label: "Chain" },
     { key: "benchmark", label: "Bench" },
